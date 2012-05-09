@@ -70,15 +70,7 @@ instance Yesod Gitit where
           <body>
              $maybe msg  <- mmsg
                <div #message>#{msg}
-             <div #doc3 class="yui-t1">
-               <div #yui-main>
-                 <div #maincol class="yui-b">
-                   ^{bodyTags}
-               <div #sidebar class="yui-b first">
-                 <div #logo>
-                   <img src="/_static/img/logo.png" alt="logo">
-                 <div class="sitenav">
-                   sitenav
+             ^{bodyTags}
         |]
 
 type Form x = Html -> MForm Gitit Gitit (FormResult x, Widget)
@@ -88,22 +80,38 @@ type Form x = Html -> MForm Gitit Gitit (FormResult x, Widget)
 instance RenderMessage Gitit FormMessage where
     renderMessage _ _ = defaultFormMessage
 
+pageLayout :: Maybe Page -> Widget -> Handler RepHtml
+pageLayout mbpage content = do
+  defaultLayout [whamlet|
+    <div #doc3 class="yui-t1">
+      <div #yui-main>
+        <div #maincol class="yui-b">
+          ^{content}
+      <div #sidebar class="yui-b first">
+        <div #logo>
+          <img src="/_static/img/logo.png" alt="logo">
+        <div class="sitenav">
+          sitenav
+          $maybe page <- mbpage
+            pagecontrols for #{page}
+  |]
+
 getHomeR :: Handler RepHtml
 getHomeR = getViewR (Page "Front Page")
 
 getViewR :: Page -> Handler RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
-  defaultLayout [whamlet|
-   <h1>Wiki
-   ^{htmlPage contents}
+  pageLayout (Just page) $ [whamlet|
+    <h1 class="title">#{page}
+    ^{htmlPage contents}
   |]
 
 getIndexR :: Handler RepHtml
 getIndexR = do
   fs <- filestore <$> getYesod
   pages <- map pageForPath <$> liftIO (index fs)
-  defaultLayout [whamlet|
+  pageLayout Nothing [whamlet|
     <ul>
       $forall page <- pages
         <li><a href="@{ViewR page}">#{page}</a>
@@ -139,7 +147,7 @@ getEditR :: Page -> Handler RepHtml
 getEditR page = do
   contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
   (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
-  defaultLayout $ do
+  pageLayout (Just page) $ do
     toWidget [lucius|
       textarea { width: 45em; height: 20em; font-family: monospace; }
       input[type='text'] { width: 45em; } 
