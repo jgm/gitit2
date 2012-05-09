@@ -30,6 +30,9 @@ instance PathMultiPiece Page where
                               else Just (Page $ T.intercalate "/" $ x:xs)
   fromPathMultiPiece []     = Nothing
 
+instance ToMarkup Page where
+  toMarkup (Page x) = toMarkup x
+
 defaultConfig :: Config
 defaultConfig = Config{ wiki_root  = ""
                       , wiki_path  = "wikidata"
@@ -91,16 +94,19 @@ getViewR page = do
 getIndexR :: Handler RepHtml
 getIndexR = do
   fs <- filestore <$> getYesod
-  files <- liftIO $ index fs
+  pages <- map pageForPath <$> liftIO (index fs)
   defaultLayout [whamlet|
     <ul>
-      $forall file <- files
-        <li>#{file}
+      $forall page <- pages
+        <li><a href="@{ViewR page}">#{page}</a>
     <p>Back to <a href=@{HomeR}>home</a>.
     |]
 
 pathForPage :: Page -> FilePath
 pathForPage (Page page) = T.unpack page <.> "page"
+
+pageForPath :: FilePath -> Page
+pageForPath = Page . T.pack . dropExtension
 
 getRawContents :: Page -> Maybe RevisionId -> Handler ByteString
 getRawContents page rev = do
@@ -119,7 +125,6 @@ htmlPage contents = do
                       stateSmart = True }
                    $ toString contents
   addScriptRemote mathjax_url
-  toWidget [lucius| h1 { color: blue; }|]
   toWidget rendered
 
 getEditR :: Page -> Handler RepHtml
