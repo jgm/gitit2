@@ -5,6 +5,7 @@ import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
 import Data.Monoid (Monoid (mappend, mempty, mconcat))
 import Control.Applicative ((<$>), (<*>), pure)
+import Data.List (isInfixOf)
 import Data.Text (Text)
 import Data.FileStore
 import System.FilePath
@@ -33,6 +34,18 @@ instance PathMultiPiece Page where
 instance ToMarkup Page where
   toMarkup (Page x) = toMarkup x
 
+data Dir = Dir Text deriving (Show, Read, Eq)
+
+instance PathMultiPiece Dir where
+  toPathMultiPiece (Dir x) = T.splitOn "/" x
+  fromPathMultiPiece (x:xs) = if "_" `T.isPrefixOf` x
+                              then Nothing
+                              else Just (Dir $ T.intercalate "/" $ x:xs)
+  fromPathMultiPiece []     = Just $ Dir ""
+
+instance ToMarkup Dir where
+  toMarkup (Dir x) = toMarkup x
+
 defaultConfig :: Config
 defaultConfig = Config{ wiki_root  = ""
                       , wiki_path  = "wikidata"
@@ -47,7 +60,7 @@ data Gitit = Gitit{ settings      :: Config
 mkYesod "Gitit" [parseRoutesNoCheck|
 / HomeR GET
 /_static StaticR Static getStatic
-/_index  IndexR GET
+/_index/*Dir  IndexR GET
 /favicon.ico FaviconR GET
 /robots.txt RobotsR GET
 /_edit/*Page  EditR GET POST
@@ -96,6 +109,30 @@ pageLayout mbpage content = do
             pagecontrols for #{page}
   |]
 
+pathForPage :: Page -> FilePath
+pathForPage (Page page) = T.unpack page <.> "page"
+
+pageForPath :: FilePath -> Page
+pageForPath = Page . T.pack . dropExtension
+
+isPage :: String -> Bool
+isPage "" = False
+isPage ('_':_) = False
+isPage s = all (`notElem` "*?") s && not (".." `isInfixOf` s) && not ("/_" `isInfixOf` s)
+-- for now, we disallow @*@ and @?@ in page names, because git filestore
+-- does not deal with them properly, and darcs filestore disallows them.
+
+isPageFile :: FilePath -> Bool
+isPageFile f = takeExtension f == ".page"
+
+isDiscussPage :: String -> Bool
+isDiscussPage ('@':xs) = isPage xs
+isDiscussPage _ = False
+
+isDiscussPageFile :: FilePath -> Bool
+isDiscussPageFile ('@':xs) = isPageFile xs
+isDiscussPageFile _ = False
+
 getHomeR :: Handler RepHtml
 getHomeR = getViewR (Page "Front Page")
 
@@ -107,22 +144,54 @@ getViewR page = do
     ^{htmlPage contents}
   |]
 
-getIndexR :: Handler RepHtml
-getIndexR = do
+getIndexR :: Dir -> Handler RepHtml
+getIndexR dir = do
   fs <- filestore <$> getYesod
-  pages <- map pageForPath <$> liftIO (index fs)
+  let prefix = case dir of
+                    Dir x | T.null x  -> ""
+                          | otherwise -> T.unpack x ++ "/"
+  listing <- liftIO $ directory fs prefix
+  let isDiscussionPage (FSFile f) = isDiscussPageFile f
+      isDiscussionPage (FSDirectory _) = False
+  let prunedListing = filter (not . isDiscussionPage) listing
   pageLayout Nothing [whamlet|
     <ul>
-      $forall page <- pages
-        <li><a href="@{ViewR page}">#{page}</a>
+      $forall page <- prunedListing
+        <li><a href="@-{ViewR page}">#{show page}</a>
     <p>Back to <a href=@{HomeR}>home</a>.
     |]
 
-pathForPage :: Page -> FilePath
-pathForPage (Page page) = T.unpack page <.> "page"
+{-
+  formattedPage defaultPageLayout{
+                  pgPageName = prefix',
+                  pgShowPageTools = False,
+                  pgTabs = [],
+                  pgScripts = [],
+                  pgTitle = "Contents"} htmlIndex
 
-pageForPath :: FilePath -> Page
-pageForPath = Page . T.pack . dropExtension
+fileListToHtml :: String -> String -> [Resource] -> Html
+fileListToHtml base' prefix files =
+  let fileLink (FSFile f) | isPageFile f =
+        li ! [theclass "page"  ] <<
+          anchor ! [href $ base' ++ urlForPage (prefix ++ dropExtension f)] <<
+            dropExtension f
+      fileLink (FSFile f) =
+        li ! [theclass "upload"] << anchor ! [href $ base' ++ urlForPage (prefix ++ f)] << f
+      fileLink (FSDirectory f) =
+        li ! [theclass "folder"] <<
+          anchor ! [href $ base' ++ urlForPage (prefix ++ f) ++ "/"] << f
+      updirs = drop 1 $ inits $ splitPath $ '/' : prefix
+      uplink = foldr (\d accum ->
+                  concatHtml [ anchor ! [theclass "updir",
+                                         href $ if length d <= 1
+                                                   then base' ++ "/_index"
+                                                   else base' ++
+                                                        urlForPage (joinPath $ drop 1 d)] <<
+                  lastNote "fileListToHtml" d, accum]) noHtml updirs
+  in uplink +++ ulist ! [theclass "index"] << map fileLink files
+
+
+-}
 
 getRawContents :: Page -> Maybe RevisionId -> Handler ByteString
 getRawContents page rev = do
