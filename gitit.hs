@@ -70,7 +70,15 @@ instance Yesod Gitit where
           <body>
              $maybe msg  <- mmsg
                <div #message>#{msg}
-             ^{bodyTags}
+             <div #doc3 class="yui-t1">
+               <div #yui-main>
+                 <div #maincol class="yui-b">
+                   ^{bodyTags}
+               <div #sidebar class="yui-b first">
+                 <div #logo>
+                   <img src="/_static/img/logo.png" alt="logo">
+                 <div class="sitenav">
+                   sitenav
         |]
 
 type Form x = Html -> MForm Gitit Gitit (FormResult x, Widget)
