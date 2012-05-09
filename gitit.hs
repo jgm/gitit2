@@ -132,8 +132,13 @@ getEditR page = do
   contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
   (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
   defaultLayout $ do
-    toWidget [lucius| textarea { width: 40em; }|]
+    toWidget [lucius|
+      textarea { width: 45em; height: 20em; font-family: monospace; }
+      input[type='text'] { width: 45em; } 
+      label { display: block; font-weight: bold; font-size: 80%; font-family: sans-serif; }
+    |]
     [whamlet|
+      <h1>#{page}</h1>
       <form method=post action=@{EditR page} enctype=#{enctype}>
         ^{form}
         <input type=submit>
@@ -142,14 +147,16 @@ getEditR page = do
 postEditR :: Page -> Handler RepHtml
 postEditR page = do
   ((res, form), enctype) <- runFormPost $ editForm Nothing
-  let edit = case res of
-                FormSuccess r -> Just r
-                _             -> Nothing
-  defaultLayout $ do
-    [whamlet|
-      $maybe ed <- edit
-        <p>You commented: #{editComment ed}
-      |]
+  fs <- filestore <$> getYesod
+  case res of
+       FormSuccess r -> do
+          liftIO $ modify fs (pathForPage page) ""
+            (Author "Dummy" "me@somewhere.net")
+            (T.unpack $ editComment r) (filter (/='\r') . T.unpack $ unTextarea $ editContents r)
+          -- TODO handle mergeinfo
+          return ()
+       _             -> return ()
+  getViewR page
 
 data Edit = Edit { editContents :: Textarea
                  , editComment  :: Text
@@ -157,8 +164,8 @@ data Edit = Edit { editContents :: Textarea
 
 editForm :: Maybe Edit-> Form Edit
 editForm mbedit = renderDivs $ Edit
-    <$> areq textareaField "Contents" (editContents <$> mbedit)
-    <*> areq commentField "Comment" (editComment <$> mbedit)
+    <$> areq textareaField "Text of page" (editContents <$> mbedit)
+    <*> areq commentField "Change description" (editComment <$> mbedit)
   where errorMessage :: Text
         errorMessage = "Comment can't be empty"
         commentField = check validateNonempty textField
