@@ -3,9 +3,9 @@
 import Yesod
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
-import Data.Monoid (Monoid (mappend, mempty, mconcat))
+import Data.Monoid (Monoid (mappend, mempty, mconcat), (<>))
 import Control.Applicative ((<$>), (<*>), pure)
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, inits)
 import Data.Text (Text)
 import Data.FileStore
 import System.FilePath
@@ -72,6 +72,7 @@ instance Yesod Gitit where
   defaultLayout contents = do
     PageContent title headTags bodyTags <- widgetToPageContent $ do
       addStylesheet $ StaticR $ StaticRoute ["css","custom.css"] []
+      addScript $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
       addWidget contents
     mmsg <- getMessage
     hamletToRepHtml [hamlet|
@@ -113,7 +114,8 @@ pathForPage :: Page -> FilePath
 pathForPage (Page page) = T.unpack page <.> "page"
 
 pageForPath :: FilePath -> Page
-pageForPath = Page . T.pack . dropExtension
+pageForPath fp = Page . T.pack $
+  if isPageFile fp then dropExtension fp else fp
 
 isPage :: String -> Bool
 isPage "" = False
@@ -145,53 +147,49 @@ getViewR page = do
   |]
 
 getIndexR :: Dir -> Handler RepHtml
-getIndexR dir = do
+getIndexR (Dir dir) = do
   fs <- filestore <$> getYesod
-  let prefix = case dir of
-                    Dir x | T.null x  -> ""
-                          | otherwise -> T.unpack x ++ "/"
-  listing <- liftIO $ directory fs prefix
+  listing <- liftIO $ directory fs $ T.unpack dir
   let isDiscussionPage (FSFile f) = isDiscussPageFile f
       isDiscussionPage (FSDirectory _) = False
   let prunedListing = filter (not . isDiscussionPage) listing
-  pageLayout Nothing [whamlet|
-    <ul>
-      $forall page <- prunedListing
-        <li><a href="@-{ViewR page}">#{show page}</a>
-    <p>Back to <a href=@{HomeR}>home</a>.
-    |]
+  let updirs = inits $ filter (not . T.null) $ toPathMultiPiece (Dir dir)
+  pageLayout Nothing $ [whamlet|
+    <h1 class="title">
+      $forall up <- updirs
+        ^{upDir up}
+    <div class="index">
+      <ul>
+        $forall ent <- prunedListing
+          ^{indexListing dir ent}
+  |]
 
-{-
-  formattedPage defaultPageLayout{
-                  pgPageName = prefix',
-                  pgShowPageTools = False,
-                  pgTabs = [],
-                  pgScripts = [],
-                  pgTitle = "Contents"} htmlIndex
+upDir :: [Text] -> Widget
+upDir fs = do
+  let lastdir = case reverse fs of
+                     (f:_)  -> f
+                     []     -> "[root]"
+  [whamlet|<a href="@{IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}">#{lastdir}/</a>|]
 
-fileListToHtml :: String -> String -> [Resource] -> Html
-fileListToHtml base' prefix files =
-  let fileLink (FSFile f) | isPageFile f =
-        li ! [theclass "page"  ] <<
-          anchor ! [href $ base' ++ urlForPage (prefix ++ dropExtension f)] <<
-            dropExtension f
-      fileLink (FSFile f) =
-        li ! [theclass "upload"] << anchor ! [href $ base' ++ urlForPage (prefix ++ f)] << f
-      fileLink (FSDirectory f) =
-        li ! [theclass "folder"] <<
-          anchor ! [href $ base' ++ urlForPage (prefix ++ f) ++ "/"] << f
-      updirs = drop 1 $ inits $ splitPath $ '/' : prefix
-      uplink = foldr (\d accum ->
-                  concatHtml [ anchor ! [theclass "updir",
-                                         href $ if length d <= 1
-                                                   then base' ++ "/_index"
-                                                   else base' ++
-                                                        urlForPage (joinPath $ drop 1 d)] <<
-                  lastNote "fileListToHtml" d, accum]) noHtml updirs
-  in uplink +++ ulist ! [theclass "index"] << map fileLink files
-
-
--}
+indexListing :: Text -> Resource -> Widget
+indexListing dir r = do
+  let pref = if T.null dir
+                then ""
+                else dir <> "/"
+  let fullName f = pref <> f'
+                     where Page f' = pageForPath f
+  case r of
+    (FSFile f) ->
+       let cls :: Text
+           cls = if isPageFile f then "page" else "upload"
+       in  [whamlet|
+          <li class="#{cls}">
+            <a href="@{ViewR $ Page $ fullName f}">#{fullName f}</a>
+          |]
+    (FSDirectory f) -> [whamlet|
+          <li class="folder">
+            <a href="@{IndexR $ Dir $ fullName f}">#{fullName f}</a>
+          |]
 
 getRawContents :: Page -> Maybe RevisionId -> Handler ByteString
 getRawContents page rev = do
