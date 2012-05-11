@@ -61,9 +61,10 @@ data GititUser = GititUser{ gititUserName  :: String
                           , gititUserEmail :: String
                           } deriving Show
 
--- mkMessage "Gitit" "messages" "en"
+mkMessage "Gitit" "messages" "en"
 
-class (Yesod master, RenderMessage master FormMessage) => YesodGitit master where
+class (Yesod master, RenderMessage master FormMessage,
+       RenderMessage master GititMessage) => YesodGitit master where
   -- | Return user information, if user is logged in, or nothing.
   maybeUser   :: GHandler sub master (Maybe GititUser)
   -- | Return user information or redirect to login page.
@@ -269,13 +270,13 @@ editForm :: YesodGitit master
          -> Html
          -> MForm Gitit master (FormResult Edit, GWidget Gitit master ())
 editForm mbedit = renderDivs $ Edit
-    <$> areq textareaField "page source" -- (fieldSettingsLabel MsgPageSource)
+    <$> areq textareaField (fieldSettingsLabel MsgPageSource)
            (editContents <$> mbedit)
-    <*> areq commentField "change description" -- (fieldSettingsLabel MsgChangeDescription)
+    <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
            (editComment <$> mbedit)
   where commentField = check validateNonempty textField
         validateNonempty y
-          | T.null y = Left ("value is required" :: Text) -- MsgValueRequired
+          | T.null y = Left MsgValueRequired
           | otherwise = Right y
 
 data Master = Master { getGitit :: Gitit }
@@ -293,6 +294,9 @@ instance Yesod Master
 
 instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage
+
+instance RenderMessage Master GititMessage where
+    renderMessage x = renderMessage (getGitit x)
 
 instance YesodGitit Master where
   maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
