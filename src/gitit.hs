@@ -21,6 +21,7 @@ instance RenderMessage Master GititMessage where
 instance YesodGitit Master where
   maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
+  pageLayout = defaultPageLayout
 
 main :: IO ()
 main = do
@@ -31,6 +32,3 @@ main = do
                                 , filestore = fs
                                 , getStatic = st
                                 })
-
-
-

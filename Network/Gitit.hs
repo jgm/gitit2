@@ -9,6 +9,7 @@ module Network.Gitit ( GititConfig (..)
                      , GititUser (..)
                      , GititMessage (..)
                      , Route (..)
+                     , defaultPageLayout
                      ) where
 
 import Yesod
@@ -32,42 +33,9 @@ infixr 5 <>
 (<>) :: Monoid m => m -> m -> m
 (<>) = mappend
 
--- | A Gitit wiki.  Here is an example of how a Gitit subsite
--- can be integrated into another Yesod app:
---
--- > {-# LANGUAGE QuasiQuotes, TemplateHaskell, MultiParamTypeClasses,
--- >     TypeFamilies, OverloadedStrings #-}
--- > import Network.Gitit
--- > import Yesod
--- > import Yesod.Static
--- > import Data.FileStore
--- >
--- > data Master = Master { getGitit :: Gitit }
--- > mkYesod "Master" [parseRoutes|
--- > /wiki SubsiteR Gitit getGitit
--- > |]
--- >
--- > instance Yesod Master
--- >
--- > instance RenderMessage Master FormMessage where
--- >     renderMessage _ _ = defaultFormMessage
--- >
--- > instance RenderMessage Master GititMessage where
--- >     renderMessage x = renderMessage (getGitit x)
--- >
--- > instance YesodGitit Master where
--- >   maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
--- >   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
--- >
--- > main :: IO ()
--- > main = do
--- >   let conf = GititConfig{ wiki_path = "wikidata" }
--- >   let fs = gitFileStore $ wiki_path conf
--- >   st <- staticDevel "static"
--- >   warpDebug 3000 $ Master (Gitit{ config    = conf
--- >                                 , filestore = fs
--- >                                 , getStatic = st
--- >                                 })
+-- | A Gitit wiki.  For an example of how a Gitit subsite
+-- can be integrated into another Yesod app, see @src/gitit.hs@
+-- in the package source.
 data Gitit = Gitit{ config        :: GititConfig  -- ^ Wiki config options.
                   , filestore     :: FileStore    -- ^ Filestore with pages.
                   , getStatic     :: Static       -- ^ Static subsite.
@@ -137,6 +105,8 @@ class (Yesod master, RenderMessage master FormMessage,
   maybeUser   :: GHandler sub master (Maybe GititUser)
   -- | Return user information or redirect to login page.
   requireUser :: GHandler sub master GititUser
+  -- | Gitit subsite page layout.
+  pageLayout :: Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
 
 -- Create routes.
 mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
@@ -150,8 +120,8 @@ mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
 /*Page     ViewR GET
 |]
 
-pageLayout :: YesodGitit master => Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
-pageLayout mbpage content = do
+defaultPageLayout :: YesodGitit master => Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
+defaultPageLayout mbpage content = do
   toMaster <- getRouteToMaster
   let logoRoute = toMaster $ StaticR $ StaticRoute ["img","logo.png"] []
   defaultLayout $ do
