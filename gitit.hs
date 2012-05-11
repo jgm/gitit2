@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
-             TemplateHaskell, OverloadedStrings, FlexibleInstances #-}
+             TemplateHaskell, OverloadedStrings, FlexibleInstances,
+             ScopedTypeVariables #-}
 import Yesod
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
@@ -60,11 +61,14 @@ data GititUser = GititUser{ gititUserName  :: String
                           , gititUserEmail :: String
                           } deriving Show
 
+-- mkMessage "Gitit" "messages" "en"
+
 class (Yesod master, RenderMessage master FormMessage) => YesodGitit master where
   -- | Return user information, if user is logged in, or nothing.
   maybeUser   :: GHandler sub master (Maybe GititUser)
   -- | Return user information or redirect to login page.
   requireUser :: GHandler sub master GititUser
+
 
 mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
  ] [parseRoutesNoCheck|
@@ -96,8 +100,8 @@ instance Yesod Gitit where
 
 -- This instance is required to use forms. You can modify renderMessage to
 -- achieve customized and internationalized form validation messages.
-instance RenderMessage Gitit FormMessage where
-    renderMessage _ _ = defaultFormMessage
+-- instance RenderMessage Gitit GititMessage where
+--  renderMessage _ _ = defaultFormMessage
 
 pageLayout :: YesodGitit master => Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
 pageLayout mbpage content = do
@@ -265,13 +269,13 @@ editForm :: YesodGitit master
          -> Html
          -> MForm Gitit master (FormResult Edit, GWidget Gitit master ())
 editForm mbedit = renderDivs $ Edit
-    <$> areq textareaField "Text of page" (editContents <$> mbedit)
-    <*> areq commentField "Change description" (editComment <$> mbedit)
-  where errorMessage :: Text
-        errorMessage = "Comment can't be empty"
-        commentField = check validateNonempty textField
+    <$> areq textareaField "page source" -- (fieldSettingsLabel MsgPageSource)
+           (editContents <$> mbedit)
+    <*> areq commentField "change description" -- (fieldSettingsLabel MsgChangeDescription)
+           (editComment <$> mbedit)
+  where commentField = check validateNonempty textField
         validateNonempty y
-          | T.null y = Left errorMessage
+          | T.null y = Left ("value is required" :: Text) -- MsgValueRequired
           | otherwise = Right y
 
 data Master = Master { getGitit :: Gitit }
