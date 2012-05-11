@@ -9,7 +9,9 @@ module Network.Gitit ( GititConfig (..)
                      , GititUser (..)
                      , GititMessage (..)
                      , Route (..)
+                     , Tab (..)
                      , PageLayout (..)
+                     , pageLayout
                      , makeDefaultPage
                      ) where
 
@@ -95,9 +97,34 @@ data GititUser = GititUser{ gititUserName  :: String
                           , gititUserEmail :: String
                           } deriving Show
 
+-- | A tab in the page layout.
+data Tab  = ViewTab
+          | EditTab
+          | HistoryTab
+          | DiscussTab
+          | DiffTab
+          deriving (Eq, Show)
+
 -- | Page layout.
 data PageLayout = PageLayout{
-    pageName :: Maybe Page
+    pgName           :: Maybe Page
+  , pgRevision       :: Maybe String
+  , pgPrintable      :: Bool
+  , pgShowPageTools  :: Bool
+  , pgShowSiteNav    :: Bool
+  , pgTabs           :: [Tab]
+  , pgSelectedTab    :: Tab
+  }
+
+-- | Default page layout.
+pageLayout = PageLayout{
+    pgName           = Nothing
+  , pgRevision       = Nothing
+  , pgPrintable      = False
+  , pgShowPageTools  = False
+  , pgShowSiteNav    = True
+  , pgTabs           = []
+  , pgSelectedTab    = ViewTab
   }
 
 -- Create GititMessages.
@@ -143,7 +170,7 @@ makeDefaultPage layout content = do
           <a href="@{toMaster HomeR}"><img src="@{logoRoute}" alt="logo"></a>
         <div class="sitenav">
           sitenav
-          $maybe page <- pageName layout
+          $maybe page <- pgName layout
             pagecontrols for #{page}
   |]
 
@@ -180,7 +207,7 @@ getHomeR = getViewR (Page "Front Page")
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
-  makePage PageLayout{ pageName = Just page } $ [whamlet|
+  makePage pageLayout{ pgName = Just page } $ [whamlet|
     <h1 class="title">#{page}
     ^{htmlPage contents}
   |]
@@ -194,7 +221,7 @@ getIndexR (Dir dir) = do
   let prunedListing = filter (not . isDiscussionPage) listing
   let updirs = inits $ filter (not . T.null) $ toPathMultiPiece (Dir dir)
   toMaster <- getRouteToMaster
-  makePage PageLayout{ pageName = Nothing } $ [whamlet|
+  makePage pageLayout{ pgName = Nothing } $ [whamlet|
     <h1 class="title">
       $forall up <- updirs
         ^{upDir toMaster up}
@@ -256,7 +283,7 @@ getEditR page = do
   contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
   (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
   toMaster <- getRouteToMaster
-  makePage PageLayout{ pageName = Just page } $ do
+  makePage pageLayout{ pgName = Just page } $ do
     toWidget [lucius|
       textarea { width: 45em; height: 20em; font-family: monospace; }
       input[type='text'] { width: 45em; } 
