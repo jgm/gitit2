@@ -32,6 +32,64 @@ infixr 5 <>
 (<>) :: Monoid m => m -> m -> m
 (<>) = mappend
 
+-- | A Gitit wiki.  Here is an example of how a Gitit subsite
+-- can be integrated into another Yesod app:
+--
+-- > {-# LANGUAGE QuasiQuotes, TemplateHaskell, MultiParamTypeClasses,
+-- >     TypeFamilies, OverloadedStrings #-}
+-- > import Network.Gitit
+-- > import Yesod
+-- > import Yesod.Static
+-- > import Data.FileStore
+-- >
+-- > data Master = Master { getGitit :: Gitit }
+-- > mkYesod "Master" [parseRoutes|
+-- > /wiki SubsiteR Gitit getGitit
+-- > |]
+-- >
+-- > instance Yesod Master
+-- >
+-- > instance RenderMessage Master FormMessage where
+-- >     renderMessage _ _ = defaultFormMessage
+-- >
+-- > instance RenderMessage Master GititMessage where
+-- >     renderMessage x = renderMessage (getGitit x)
+-- >
+-- > instance YesodGitit Master where
+-- >   maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
+-- >   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >   let conf = GititConfig{ wiki_path = "wikidata" }
+-- >   let fs = gitFileStore $ wiki_path conf
+-- >   st <- staticDevel "static"
+-- >   warpDebug 3000 $ Master (Gitit{ config    = conf
+-- >                                 , filestore = fs
+-- >                                 , getStatic = st
+-- >                                 })
+data Gitit = Gitit{ config        :: GititConfig  -- ^ Wiki config options.
+                  , filestore     :: FileStore    -- ^ Filestore with pages.
+                  , getStatic     :: Static       -- ^ Static subsite.
+                  }
+
+instance Yesod Gitit where
+  defaultLayout contents = do
+    PageContent title headTags bodyTags <- widgetToPageContent $ do
+      addWidget contents
+    mmsg <- getMessage
+    hamletToRepHtml [hamlet|
+        $doctype 5
+        <html>
+          <head>
+             <title>#{title}
+             ^{headTags}
+          <body>
+             $maybe msg  <- mmsg
+               <div #message>#{msg}
+             ^{bodyTags}
+        |]
+
 -- | Configuration for a gitit wiki.
 data GititConfig = GititConfig{
        wiki_path  :: FilePath    -- ^ Path to the repository.
@@ -62,29 +120,6 @@ instance PathMultiPiece Dir where
 
 instance ToMarkup Dir where
   toMarkup (Dir x) = toMarkup x
-
--- | A gitit wiki.
-data Gitit = Gitit{ config        :: GititConfig  -- ^ Wiki config options.
-                  , filestore     :: FileStore    -- ^ Filestore with pages.
-                  , getStatic     :: Static       -- ^ Static subsite.
-                  }
-
-instance Yesod Gitit where
-  defaultLayout contents = do
-    PageContent title headTags bodyTags <- widgetToPageContent $ do
-      addWidget contents
-    mmsg <- getMessage
-    hamletToRepHtml [hamlet|
-        $doctype 5
-        <html>
-          <head>
-             <title>#{title}
-             ^{headTags}
-          <body>
-             $maybe msg  <- mmsg
-               <div #message>#{msg}
-             ^{bodyTags}
-        |]
 
 -- | A user.
 data GititUser = GititUser{ gititUserName  :: String
@@ -135,6 +170,8 @@ pageLayout mbpage content = do
           $maybe page <- mbpage
             pagecontrols for #{page}
   |]
+
+-- HANDLERS and utility functions, not exported:
 
 pathForPage :: Page -> FilePath
 pathForPage (Page page) = T.unpack page <.> "page"

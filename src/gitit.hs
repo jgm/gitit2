@@ -1,6 +1,5 @@
-{-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
-             TemplateHaskell, OverloadedStrings, FlexibleInstances,
-             ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes, TemplateHaskell, MultiParamTypeClasses, TypeFamilies,
+    OverloadedStrings #-}
 import Network.Gitit
 import Yesod
 import Yesod.Static
