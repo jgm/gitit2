@@ -56,8 +56,15 @@ data Gitit = Gitit{ settings      :: Config
                   , getStatic     :: Static
                   }
 
+data GititUser = GititUser{ name   :: Text
+                          , email  :: Text
+                          } deriving Show
+
 class (Yesod master, RenderMessage master FormMessage) => YesodGitit master where
-  getUserName :: GHandler sub master Text
+  -- | Return user information, if user is logged in, or nothing.
+  maybeUser   :: GHandler sub master (Maybe GititUser)
+  -- | Return user information or redirect to login page.
+  requireUser :: GHandler sub master GititUser
 
 mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
  ] [parseRoutesNoCheck|
@@ -282,7 +289,8 @@ instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage
 
 instance YesodGitit Master where
-  getUserName = return "Dummy"
+  maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
+  requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
 
 main :: IO ()
 main = do
