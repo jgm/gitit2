@@ -15,11 +15,8 @@ module Network.Gitit ( Config (..)
 import Yesod
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
-import Language.Haskell.TH
-import Data.Monoid (Monoid (mappend, mempty, mconcat), (<>))
-import Control.Applicative ((<$>), (<*>), pure)
+import Language.Haskell.TH hiding (dyn)
 import Data.List (isInfixOf, inits)
-import Data.Text (Text)
 import Data.FileStore
 import System.FilePath
 import Text.Pandoc
@@ -27,8 +24,14 @@ import Control.Applicative
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Lazy.UTF8 (toString, fromString)
-import Text.Blaze.Html
+import Data.ByteString.Lazy.UTF8 (toString )
+import Text.Blaze.Html hiding (contents)
+import Data.Monoid (Monoid, mappend)
+
+-- This is defined in GHC 7.04+, but for compatibility we define it here
+infixr 5 <>
+(<>) :: Monoid m => m -> m -> m
+(<>) = mappend
 
 data Config = Config{ wiki_path  :: FilePath
                     , static_dir :: FilePath
@@ -260,7 +263,7 @@ postEditR :: YesodGitit master
           => Page -> GHandler Gitit master RepHtml
 postEditR page = do
   user <- requireUser
-  ((res, form), enctype) <- runFormPost $ editForm Nothing
+  ((res, _form), _enctype) <- runFormPost $ editForm Nothing
   fs <- filestore <$> getYesodSub
   case res of
        FormSuccess r -> do

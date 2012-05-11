@@ -11,11 +11,6 @@ mkYesod "Master" [parseRoutes|
 / SubsiteR Gitit getGitit
 |]
 
-getRootR :: GHandler Master Master RepHtml
-getRootR = defaultLayout [whamlet|
-  <p>See the <a href="@{SubsiteR HomeR}">wiki</a>.
-  |]
-
 instance Yesod Master
 
 instance RenderMessage Master FormMessage where
