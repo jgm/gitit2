@@ -9,7 +9,8 @@ module Network.Gitit ( GititConfig (..)
                      , GititUser (..)
                      , GititMessage (..)
                      , Route (..)
-                     , defaultPageLayout
+                     , PageLayout (..)
+                     , makeDefaultPage
                      ) where
 
 import Yesod
@@ -94,6 +95,11 @@ data GititUser = GititUser{ gititUserName  :: String
                           , gititUserEmail :: String
                           } deriving Show
 
+-- | Page layout.
+data PageLayout = PageLayout{
+    pageName :: Maybe Page
+  }
+
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
 
@@ -106,7 +112,7 @@ class (Yesod master, RenderMessage master FormMessage,
   -- | Return user information or redirect to login page.
   requireUser :: GHandler sub master GititUser
   -- | Gitit subsite page layout.
-  pageLayout :: Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
+  makePage :: PageLayout -> GWidget Gitit master () -> GHandler Gitit master RepHtml
 
 -- Create routes.
 mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
@@ -120,8 +126,8 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /*Page     ViewR GET
 |]
 
-defaultPageLayout :: HasGitit master => Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
-defaultPageLayout mbpage content = do
+makeDefaultPage :: HasGitit master => PageLayout -> GWidget Gitit master () -> GHandler Gitit master RepHtml
+makeDefaultPage layout content = do
   toMaster <- getRouteToMaster
   let logoRoute = toMaster $ StaticR $ StaticRoute ["img","logo.png"] []
   defaultLayout $ do
@@ -137,7 +143,7 @@ defaultPageLayout mbpage content = do
           <a href="@{toMaster HomeR}"><img src="@{logoRoute}" alt="logo"></a>
         <div class="sitenav">
           sitenav
-          $maybe page <- mbpage
+          $maybe page <- pageName layout
             pagecontrols for #{page}
   |]
 
@@ -174,7 +180,7 @@ getHomeR = getViewR (Page "Front Page")
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
-  pageLayout (Just page) $ [whamlet|
+  makePage PageLayout{ pageName = Just page } $ [whamlet|
     <h1 class="title">#{page}
     ^{htmlPage contents}
   |]
@@ -188,7 +194,7 @@ getIndexR (Dir dir) = do
   let prunedListing = filter (not . isDiscussionPage) listing
   let updirs = inits $ filter (not . T.null) $ toPathMultiPiece (Dir dir)
   toMaster <- getRouteToMaster
-  pageLayout Nothing $ [whamlet|
+  makePage PageLayout{ pageName = Nothing } $ [whamlet|
     <h1 class="title">
       $forall up <- updirs
         ^{upDir toMaster up}
@@ -250,7 +256,7 @@ getEditR page = do
   contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
   (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
   toMaster <- getRouteToMaster
-  pageLayout (Just page) $ do
+  makePage PageLayout{ pageName = Just page } $ do
     toWidget [lucius|
       textarea { width: 45em; height: 20em; font-family: monospace; }
       input[type='text'] { width: 45em; } 

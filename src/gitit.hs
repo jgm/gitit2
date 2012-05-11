@@ -21,7 +21,7 @@ instance RenderMessage Master GititMessage where
 instance HasGitit Master where
   maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
-  pageLayout = defaultPageLayout
+  makePage = makeDefaultPage
 
 main :: IO ()
 main = do
