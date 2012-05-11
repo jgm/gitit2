@@ -1,10 +1,9 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              ScopedTypeVariables #-}
-module Network.Gitit ( Config (..)
+module Network.Gitit ( GititConfig (..)
                      , Page (..)
                      , Dir (..)
-                     , defaultConfig
                      , YesodGitit (..)
                      , Gitit (..)
                      , GititUser (..)
@@ -28,15 +27,17 @@ import Data.ByteString.Lazy.UTF8 (toString )
 import Text.Blaze.Html hiding (contents)
 import Data.Monoid (Monoid, mappend)
 
--- This is defined in GHC 7.04+, but for compatibility we define it here
+-- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
 (<>) :: Monoid m => m -> m -> m
 (<>) = mappend
 
-data Config = Config{ wiki_path  :: FilePath
-                    , static_dir :: FilePath
-                    }
+-- | Configuration for a gitit wiki.
+data GititConfig = GititConfig{
+       wiki_path  :: FilePath    -- ^ Path to the repository.
+     }
 
+-- | Path to a wiki page.  Pages can't begin with '_'.
 data Page = Page Text deriving (Show, Read, Eq)
 
 instance PathMultiPiece Page where
@@ -49,6 +50,7 @@ instance PathMultiPiece Page where
 instance ToMarkup Page where
   toMarkup (Page x) = toMarkup x
 
+-- | Wiki directory.  Directories can't begin with '_'.
 data Dir = Dir Text deriving (Show, Read, Eq)
 
 instance PathMultiPiece Dir where
@@ -61,40 +63,11 @@ instance PathMultiPiece Dir where
 instance ToMarkup Dir where
   toMarkup (Dir x) = toMarkup x
 
-defaultConfig :: Config
-defaultConfig = Config{ wiki_path  = "wikidata"
-                      , static_dir = "public"
-                      }
-
-data Gitit = Gitit{ settings      :: Config
-                  , filestore     :: FileStore
-                  , getStatic     :: Static
+-- | A gitit wiki.
+data Gitit = Gitit{ config        :: GititConfig  -- ^ Wiki config options.
+                  , filestore     :: FileStore    -- ^ Filestore with pages.
+                  , getStatic     :: Static       -- ^ Static subsite.
                   }
-
-data GititUser = GititUser{ gititUserName  :: String
-                          , gititUserEmail :: String
-                          } deriving Show
-
-mkMessage "Gitit" "messages" "en"
-
-class (Yesod master, RenderMessage master FormMessage,
-       RenderMessage master GititMessage) => YesodGitit master where
-  -- | Return user information, if user is logged in, or nothing.
-  maybeUser   :: GHandler sub master (Maybe GititUser)
-  -- | Return user information or redirect to login page.
-  requireUser :: GHandler sub master GititUser
-
-
-mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
- ] [parseRoutesNoCheck|
-/ HomeR GET
-/_static StaticR Static getStatic
-/_index/*Dir  IndexR GET
-/favicon.ico FaviconR GET
-/robots.txt RobotsR GET
-/_edit/*Page  EditR GET POST
-/*Page     ViewR GET
-|]
 
 instance Yesod Gitit where
   defaultLayout contents = do
@@ -113,10 +86,34 @@ instance Yesod Gitit where
              ^{bodyTags}
         |]
 
--- This instance is required to use forms. You can modify renderMessage to
--- achieve customized and internationalized form validation messages.
--- instance RenderMessage Gitit GititMessage where
---  renderMessage _ _ = defaultFormMessage
+-- | A user.
+data GititUser = GititUser{ gititUserName  :: String
+                          , gititUserEmail :: String
+                          } deriving Show
+
+-- Create GititMessages.
+mkMessage "Gitit" "messages" "en"
+
+-- | The master site containing a Gitit subsite must be an instance
+-- of this typeclass.
+class (Yesod master, RenderMessage master FormMessage,
+       RenderMessage master GititMessage) => YesodGitit master where
+  -- | Return user information, if user is logged in, or nothing.
+  maybeUser   :: GHandler sub master (Maybe GititUser)
+  -- | Return user information or redirect to login page.
+  requireUser :: GHandler sub master GititUser
+
+-- Create routes.
+mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
+ ] [parseRoutesNoCheck|
+/ HomeR GET
+/_static StaticR Static getStatic
+/_index/*Dir  IndexR GET
+/favicon.ico FaviconR GET
+/robots.txt RobotsR GET
+/_edit/*Page  EditR GET POST
+/*Page     ViewR GET
+|]
 
 pageLayout :: YesodGitit master => Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
 pageLayout mbpage content = do

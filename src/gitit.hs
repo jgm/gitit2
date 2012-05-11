@@ -25,10 +25,10 @@ instance YesodGitit Master where
 
 main :: IO ()
 main = do
-  let conf = defaultConfig
+  let conf = GititConfig{ wiki_path = "wikidata" }
   let fs = gitFileStore $ wiki_path conf
   st <- staticDevel "static"
-  warpDebug 3000 $ Master (Gitit{ settings = conf
+  warpDebug 3000 $ Master (Gitit{ config    = conf
                                 , filestore = fs
                                 , getStatic = st
                                 })
