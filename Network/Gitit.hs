@@ -161,14 +161,14 @@ makeDefaultPage layout content = do
     addStylesheet $ toMaster $ StaticR $ StaticRoute ["css","custom.css"] []
     addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
     [whamlet|
-    <div #doc3 class="yui-t1">
+    <div #doc3 .yui-t1>
       <div #yui-main>
-        <div #maincol class="yui-b">
+        <div #maincol .yui-b>
           ^{content}
-      <div #sidebar class="yui-b first">
+      <div #sidebar .yui-b .first>
         <div #logo>
-          <a href="@{toMaster HomeR}"><img src="@{logoRoute}" alt="logo"></a>
-        <div class="sitenav">
+          <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
+        <div .sitenav>
           sitenav
           $maybe page <- pgName layout
             pagecontrols for #{page}
@@ -208,7 +208,7 @@ getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
   makePage pageLayout{ pgName = Just page } $ [whamlet|
-    <h1 class="title">#{page}
+    <h1 .title>#{page}
     ^{htmlPage contents}
   |]
 
@@ -222,10 +222,10 @@ getIndexR (Dir dir) = do
   let updirs = inits $ filter (not . T.null) $ toPathMultiPiece (Dir dir)
   toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Nothing } $ [whamlet|
-    <h1 class="title">
+    <h1 .title>
       $forall up <- updirs
         ^{upDir toMaster up}
-    <div class="index">
+    <div .index>
       <ul>
         $forall ent <- prunedListing
           ^{indexListing toMaster dir ent}
@@ -236,7 +236,7 @@ upDir toMaster fs = do
   let lastdir = case reverse fs of
                      (f:_)  -> f
                      []     -> "[root]"
-  [whamlet|<a href="@{toMaster $ IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}">#{lastdir}/</a>|]
+  [whamlet|<a href=@{toMaster $ IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}>#{lastdir}/</a>|]
 
 indexListing :: (Route Gitit -> Route master) -> Text -> Resource -> GWidget Gitit master ()
 indexListing toMaster dir r = do
@@ -245,17 +245,16 @@ indexListing toMaster dir r = do
                 else dir <> "/"
   let fullName f = pref <> f'
                      where Page f' = pageForPath f
+  let cls :: FilePath -> Text
+      cls f = if isPageFile f then "page" else "upload"
   case r of
-    (FSFile f) ->
-       let cls :: Text
-           cls = if isPageFile f then "page" else "upload"
-       in  [whamlet|
-          <li class="#{cls}">
-            <a href="@{toMaster $ ViewR $ Page $ fullName f}">#{fullName f}</a>
+    (FSFile f) -> [whamlet|
+          <li .#{cls f}>
+            <a href=@{toMaster $ ViewR $ Page $ fullName f}>#{fullName f}</a>
           |]
     (FSDirectory f) -> [whamlet|
-          <li class="folder">
-            <a href="@{toMaster $ IndexR $ Dir $ fullName f}">#{fullName f}</a>
+          <li .folder>
+            <a href=@{toMaster $ IndexR $ Dir $ fullName f}>#{fullName f}</a>
           |]
 
 getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master ByteString
