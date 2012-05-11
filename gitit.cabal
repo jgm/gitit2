@@ -62,7 +62,7 @@ library
     ghc-options:  -Wall -threaded
 
 executable gitit
-    main-is:    main.hs
+    main-is:    gitit.hs
     hs-source-dirs: src
     build-depends: base                          >= 4          && < 5
                  , yesod                         >= 1.0        && < 1.1
