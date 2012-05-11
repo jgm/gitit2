@@ -1,8 +1,9 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
-             TemplateHaskell, OverloadedStrings #-}
+             TemplateHaskell, OverloadedStrings, FlexibleInstances #-}
 import Yesod
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
+import Language.Haskell.TH
 import Data.Monoid (Monoid (mappend, mempty, mconcat), (<>))
 import Control.Applicative ((<$>), (<*>), pure)
 import Data.List (isInfixOf, inits)
@@ -17,8 +18,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.UTF8 (toString, fromString)
 import Text.Blaze.Html
 
-data Config = Config{ wiki_root  :: Text
-                    , wiki_path  :: FilePath
+data Config = Config{ wiki_path  :: FilePath
                     , static_dir :: FilePath
                     }
 
@@ -47,8 +47,7 @@ instance ToMarkup Dir where
   toMarkup (Dir x) = toMarkup x
 
 defaultConfig :: Config
-defaultConfig = Config{ wiki_root  = ""
-                      , wiki_path  = "wikidata"
+defaultConfig = Config{ wiki_path  = "wikidata"
                       , static_dir = "public"
                       }
 
@@ -57,7 +56,11 @@ data Gitit = Gitit{ settings      :: Config
                   , getStatic     :: Static
                   }
 
-mkYesod "Gitit" [parseRoutesNoCheck|
+class (Yesod master, RenderMessage master FormMessage) => YesodGitit master where
+  getUserName :: GHandler sub master Text
+
+mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
+ ] [parseRoutesNoCheck|
 / HomeR GET
 /_static StaticR Static getStatic
 /_index/*Dir  IndexR GET
@@ -68,11 +71,8 @@ mkYesod "Gitit" [parseRoutesNoCheck|
 |]
 
 instance Yesod Gitit where
-  approot = ApprootMaster $ wiki_root . settings
   defaultLayout contents = do
     PageContent title headTags bodyTags <- widgetToPageContent $ do
-      addStylesheet $ StaticR $ StaticRoute ["css","custom.css"] []
-      addScript $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
       addWidget contents
     mmsg <- getMessage
     hamletToRepHtml [hamlet|
@@ -87,23 +87,26 @@ instance Yesod Gitit where
              ^{bodyTags}
         |]
 
-type Form x = Html -> MForm Gitit Gitit (FormResult x, Widget)
-
 -- This instance is required to use forms. You can modify renderMessage to
 -- achieve customized and internationalized form validation messages.
 instance RenderMessage Gitit FormMessage where
     renderMessage _ _ = defaultFormMessage
 
-pageLayout :: Maybe Page -> Widget -> Handler RepHtml
+pageLayout :: YesodGitit master => Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
 pageLayout mbpage content = do
-  defaultLayout [whamlet|
+  toMaster <- getRouteToMaster
+  let logoRoute = toMaster $ StaticR $ StaticRoute ["img","logo.png"] []
+  defaultLayout $ do
+    addStylesheet $ toMaster $ StaticR $ StaticRoute ["css","custom.css"] []
+    addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
+    [whamlet|
     <div #doc3 class="yui-t1">
       <div #yui-main>
         <div #maincol class="yui-b">
           ^{content}
       <div #sidebar class="yui-b first">
         <div #logo>
-          <img src="/_static/img/logo.png" alt="logo">
+          <a href="@{toMaster HomeR}"><img src="@{logoRoute}" alt="logo"></a>
         <div class="sitenav">
           sitenav
           $maybe page <- mbpage
@@ -135,10 +138,10 @@ isDiscussPageFile :: FilePath -> Bool
 isDiscussPageFile ('@':xs) = isPageFile xs
 isDiscussPageFile _ = False
 
-getHomeR :: Handler RepHtml
+getHomeR :: YesodGitit master => GHandler Gitit master RepHtml
 getHomeR = getViewR (Page "Front Page")
 
-getViewR :: Page -> Handler RepHtml
+getViewR :: YesodGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
   pageLayout (Just page) $ [whamlet|
@@ -146,33 +149,34 @@ getViewR page = do
     ^{htmlPage contents}
   |]
 
-getIndexR :: Dir -> Handler RepHtml
+getIndexR :: YesodGitit master => Dir -> GHandler Gitit master RepHtml
 getIndexR (Dir dir) = do
-  fs <- filestore <$> getYesod
+  fs <- filestore <$> getYesodSub
   listing <- liftIO $ directory fs $ T.unpack dir
   let isDiscussionPage (FSFile f) = isDiscussPageFile f
       isDiscussionPage (FSDirectory _) = False
   let prunedListing = filter (not . isDiscussionPage) listing
   let updirs = inits $ filter (not . T.null) $ toPathMultiPiece (Dir dir)
+  toMaster <- getRouteToMaster
   pageLayout Nothing $ [whamlet|
     <h1 class="title">
       $forall up <- updirs
-        ^{upDir up}
+        ^{upDir toMaster up}
     <div class="index">
       <ul>
         $forall ent <- prunedListing
-          ^{indexListing dir ent}
+          ^{indexListing toMaster dir ent}
   |]
 
-upDir :: [Text] -> Widget
-upDir fs = do
+upDir :: (Route Gitit -> Route master) -> [Text] -> GWidget Gitit master ()
+upDir toMaster fs = do
   let lastdir = case reverse fs of
                      (f:_)  -> f
                      []     -> "[root]"
-  [whamlet|<a href="@{IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}">#{lastdir}/</a>|]
+  [whamlet|<a href="@{toMaster $ IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}">#{lastdir}/</a>|]
 
-indexListing :: Text -> Resource -> Widget
-indexListing dir r = do
+indexListing :: (Route Gitit -> Route master) -> Text -> Resource -> GWidget Gitit master ()
+indexListing toMaster dir r = do
   let pref = if T.null dir
                 then ""
                 else dir <> "/"
@@ -184,19 +188,19 @@ indexListing dir r = do
            cls = if isPageFile f then "page" else "upload"
        in  [whamlet|
           <li class="#{cls}">
-            <a href="@{ViewR $ Page $ fullName f}">#{fullName f}</a>
+            <a href="@{toMaster $ ViewR $ Page $ fullName f}">#{fullName f}</a>
           |]
     (FSDirectory f) -> [whamlet|
           <li class="folder">
-            <a href="@{IndexR $ Dir $ fullName f}">#{fullName f}</a>
+            <a href="@{toMaster $ IndexR $ Dir $ fullName f}">#{fullName f}</a>
           |]
 
-getRawContents :: Page -> Maybe RevisionId -> Handler ByteString
+getRawContents :: YesodGitit master => Page -> Maybe RevisionId -> GHandler Gitit master ByteString
 getRawContents page rev = do
-  fs <- filestore <$> getYesod
+  fs <- filestore <$> getYesodSub
   liftIO $ retrieve fs (pathForPage page) rev
 
-htmlPage :: ByteString -> Widget
+htmlPage :: YesodGitit master => ByteString -> GWidget Gitit master ()
 htmlPage contents = do
   let mathjax_url = "https://d3eoax9i5htok0.cloudfront.net/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
   let rendered = writeHtml defaultWriterOptions{
@@ -210,10 +214,11 @@ htmlPage contents = do
   addScriptRemote mathjax_url
   toWidget rendered
 
-getEditR :: Page -> Handler RepHtml
+getEditR :: YesodGitit master => Page -> GHandler Gitit master RepHtml
 getEditR page = do
   contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
   (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
+  toMaster <- getRouteToMaster
   pageLayout (Just page) $ do
     toWidget [lucius|
       textarea { width: 45em; height: 20em; font-family: monospace; }
@@ -222,15 +227,16 @@ getEditR page = do
     |]
     [whamlet|
       <h1>#{page}</h1>
-      <form method=post action=@{EditR page} enctype=#{enctype}>
+      <form method=post action=@{toMaster $ EditR page} enctype=#{enctype}>
         ^{form}
         <input type=submit>
     |]
 
-postEditR :: Page -> Handler RepHtml
+postEditR :: YesodGitit master
+          => Page -> GHandler Gitit master RepHtml
 postEditR page = do
   ((res, form), enctype) <- runFormPost $ editForm Nothing
-  fs <- filestore <$> getYesod
+  fs <- filestore <$> getYesodSub
   case res of
        FormSuccess r -> do
           liftIO $ modify fs (pathForPage page) ""
@@ -245,7 +251,10 @@ data Edit = Edit { editContents :: Textarea
                  , editComment  :: Text
                  } deriving Show
 
-editForm :: Maybe Edit-> Form Edit
+editForm :: YesodGitit master
+         => Maybe Edit
+         -> Html
+         -> MForm Gitit master (FormResult Edit, GWidget Gitit master ())
 editForm mbedit = renderDivs $ Edit
     <$> areq textareaField "Text of page" (editContents <$> mbedit)
     <*> areq commentField "Change description" (editComment <$> mbedit)
@@ -256,15 +265,33 @@ editForm mbedit = renderDivs $ Edit
           | T.null y = Left errorMessage
           | otherwise = Right y
 
+data Master = Master { getGitit :: Gitit }
+mkYesod "Master" [parseRoutes|
+/ RootR GET
+/wiki SubsiteR Gitit getGitit
+|]
+
+getRootR :: GHandler Master Master RepHtml
+getRootR = defaultLayout [whamlet|
+  <p>See the <a href="@{SubsiteR HomeR}">wiki</a>.
+  |]
+
+instance Yesod Master
+
+instance RenderMessage Master FormMessage where
+    renderMessage _ _ = defaultFormMessage
+
+instance YesodGitit Master where
+  getUserName = return "Dummy"
 
 main :: IO ()
 main = do
   let conf = defaultConfig
   let fs = gitFileStore $ wiki_path conf
   st <- staticDevel "static"
-  warpDebug 3000 (Gitit{ settings = conf
-                       , filestore = fs
-                       , getStatic = st
-                       })
+  warpDebug 3000 $ Master (Gitit{ settings = conf
+                                , filestore = fs
+                                , getStatic = st
+                                })
 
 
