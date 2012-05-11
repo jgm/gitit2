@@ -79,6 +79,10 @@ instance PathMultiPiece Page where
 instance ToMarkup Page where
   toMarkup (Page x) = toMarkup x
 
+instance ToMarkup (Maybe Page) where
+  toMarkup (Just x) = toMarkup x
+  toMarkup Nothing  = ""
+
 -- | Wiki directory.  Directories can't begin with '_'.
 data Dir = Dir Text deriving (Show, Read, Eq)
 
@@ -110,8 +114,8 @@ data PageLayout = PageLayout{
     pgName           :: Maybe Page
   , pgRevision       :: Maybe String
   , pgPrintable      :: Bool
-  , pgShowPageTools  :: Bool
-  , pgShowSiteNav    :: Bool
+  , pgPageTools      :: Bool
+  , pgSiteNav        :: Bool
   , pgTabs           :: [Tab]
   , pgSelectedTab    :: Tab
   }
@@ -121,8 +125,8 @@ pageLayout = PageLayout{
     pgName           = Nothing
   , pgRevision       = Nothing
   , pgPrintable      = False
-  , pgShowPageTools  = False
-  , pgShowSiteNav    = True
+  , pgPageTools      = False
+  , pgSiteNav        = True
   , pgTabs           = []
   , pgSelectedTab    = ViewTab
   }
@@ -168,11 +172,15 @@ makeDefaultPage layout content = do
       <div #sidebar .yui-b .first>
         <div #logo>
           <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
-        <div .sitenav>
-          sitenav
-          $maybe page <- pgName layout
-            pagecontrols for #{page}
+        $if pgSiteNav layout
+          <div .sitenav>
+            sitenav
+        $if pgPageTools layout
+          <div .pagetools>
+            pagetools for #{pgName layout}
   |]
+          -- $maybe page <- pgName layout
+          --   pagecontrols for #{page}
 
 -- HANDLERS and utility functions, not exported:
 
@@ -207,7 +215,9 @@ getHomeR = getViewR (Page "Front Page")
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
-  makePage pageLayout{ pgName = Just page } $ [whamlet|
+  makePage pageLayout{ pgName = Just page
+                     , pgPageTools = True }
+           [whamlet|
     <h1 .title>#{page}
     ^{htmlPage contents}
   |]
