@@ -4,7 +4,7 @@
 module Network.Gitit ( GititConfig (..)
                      , Page (..)
                      , Dir (..)
-                     , YesodGitit (..)
+                     , HasGitit (..)
                      , Gitit (..)
                      , GititUser (..)
                      , GititMessage (..)
@@ -100,7 +100,7 @@ mkMessage "Gitit" "messages" "en"
 -- | The master site containing a Gitit subsite must be an instance
 -- of this typeclass.
 class (Yesod master, RenderMessage master FormMessage,
-       RenderMessage master GititMessage) => YesodGitit master where
+       RenderMessage master GititMessage) => HasGitit master where
   -- | Return user information, if user is logged in, or nothing.
   maybeUser   :: GHandler sub master (Maybe GititUser)
   -- | Return user information or redirect to login page.
@@ -109,7 +109,7 @@ class (Yesod master, RenderMessage master FormMessage,
   pageLayout :: Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
 
 -- Create routes.
-mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
+mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
  ] [parseRoutesNoCheck|
 / HomeR GET
 /_static StaticR Static getStatic
@@ -120,7 +120,7 @@ mkYesodSub "Gitit" [ ClassP ''YesodGitit [VarT $ mkName "master"]
 /*Page     ViewR GET
 |]
 
-defaultPageLayout :: YesodGitit master => Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
+defaultPageLayout :: HasGitit master => Maybe Page -> GWidget Gitit master () -> GHandler Gitit master RepHtml
 defaultPageLayout mbpage content = do
   toMaster <- getRouteToMaster
   let logoRoute = toMaster $ StaticR $ StaticRoute ["img","logo.png"] []
@@ -168,10 +168,10 @@ isDiscussPageFile :: FilePath -> Bool
 isDiscussPageFile ('@':xs) = isPageFile xs
 isDiscussPageFile _ = False
 
-getHomeR :: YesodGitit master => GHandler Gitit master RepHtml
+getHomeR :: HasGitit master => GHandler Gitit master RepHtml
 getHomeR = getViewR (Page "Front Page")
 
-getViewR :: YesodGitit master => Page -> GHandler Gitit master RepHtml
+getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
   pageLayout (Just page) $ [whamlet|
@@ -179,7 +179,7 @@ getViewR page = do
     ^{htmlPage contents}
   |]
 
-getIndexR :: YesodGitit master => Dir -> GHandler Gitit master RepHtml
+getIndexR :: HasGitit master => Dir -> GHandler Gitit master RepHtml
 getIndexR (Dir dir) = do
   fs <- filestore <$> getYesodSub
   listing <- liftIO $ directory fs $ T.unpack dir
@@ -225,12 +225,12 @@ indexListing toMaster dir r = do
             <a href="@{toMaster $ IndexR $ Dir $ fullName f}">#{fullName f}</a>
           |]
 
-getRawContents :: YesodGitit master => Page -> Maybe RevisionId -> GHandler Gitit master ByteString
+getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master ByteString
 getRawContents page rev = do
   fs <- filestore <$> getYesodSub
   liftIO $ retrieve fs (pathForPage page) rev
 
-htmlPage :: YesodGitit master => ByteString -> GWidget Gitit master ()
+htmlPage :: HasGitit master => ByteString -> GWidget Gitit master ()
 htmlPage contents = do
   let mathjax_url = "https://d3eoax9i5htok0.cloudfront.net/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
   let rendered = writeHtml defaultWriterOptions{
@@ -244,7 +244,7 @@ htmlPage contents = do
   addScriptRemote mathjax_url
   toWidget rendered
 
-getEditR :: YesodGitit master => Page -> GHandler Gitit master RepHtml
+getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getEditR page = do
   requireUser
   contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
@@ -263,7 +263,7 @@ getEditR page = do
         <input type=submit>
     |]
 
-postEditR :: YesodGitit master
+postEditR :: HasGitit master
           => Page -> GHandler Gitit master RepHtml
 postEditR page = do
   user <- requireUser
@@ -283,7 +283,7 @@ data Edit = Edit { editContents :: Textarea
                  , editComment  :: Text
                  } deriving Show
 
-editForm :: YesodGitit master
+editForm :: HasGitit master
          => Maybe Edit
          -> Html
          -> MForm Gitit master (FormResult Edit, GWidget Gitit master ())

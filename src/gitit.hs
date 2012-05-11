@@ -18,7 +18,7 @@ instance RenderMessage Master FormMessage where
 instance RenderMessage Master GititMessage where
     renderMessage x = renderMessage (getGitit x)
 
-instance YesodGitit Master where
+instance HasGitit Master where
   maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
   pageLayout = defaultPageLayout
