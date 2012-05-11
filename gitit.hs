@@ -56,8 +56,8 @@ data Gitit = Gitit{ settings      :: Config
                   , getStatic     :: Static
                   }
 
-data GititUser = GititUser{ name   :: Text
-                          , email  :: Text
+data GititUser = GititUser{ gititUserName  :: String
+                          , gititUserEmail :: String
                           } deriving Show
 
 class (Yesod master, RenderMessage master FormMessage) => YesodGitit master where
@@ -223,6 +223,7 @@ htmlPage contents = do
 
 getEditR :: YesodGitit master => Page -> GHandler Gitit master RepHtml
 getEditR page = do
+  requireUser
   contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
   (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
   toMaster <- getRouteToMaster
@@ -242,12 +243,13 @@ getEditR page = do
 postEditR :: YesodGitit master
           => Page -> GHandler Gitit master RepHtml
 postEditR page = do
+  user <- requireUser
   ((res, form), enctype) <- runFormPost $ editForm Nothing
   fs <- filestore <$> getYesodSub
   case res of
        FormSuccess r -> do
           liftIO $ modify fs (pathForPage page) ""
-            (Author "Dummy" "me@somewhere.net")
+            (Author (gititUserName user) (gititUserEmail user))
             (T.unpack $ editComment r) (filter (/='\r') . T.unpack $ unTextarea $ editContents r)
           -- TODO handle mergeinfo
           return ()
