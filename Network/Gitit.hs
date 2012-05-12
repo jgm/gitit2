@@ -161,6 +161,10 @@ makeDefaultPage :: HasGitit master => PageLayout -> GWidget Gitit master () -> G
 makeDefaultPage layout content = do
   toMaster <- getRouteToMaster
   let logoRoute = toMaster $ StaticR $ StaticRoute ["img","logo.png"] []
+  let feedRoute = toMaster $ StaticR $ StaticRoute ["img","icons","feed.png"] []
+  let tabClass :: Tab -> Text
+      tabClass t = if t == pgSelectedTab layout then "selected" else ""
+  let showTab t = t `elem` pgTabs layout
   defaultLayout $ do
     addStylesheet $ toMaster $ StaticR $ StaticRoute ["css","custom.css"] []
     addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
@@ -168,16 +172,56 @@ makeDefaultPage layout content = do
     <div #doc3 .yui-t1>
       <div #yui-main>
         <div #maincol .yui-b>
-          ^{content}
+          <div #userbox>
+          $maybe page <- pgName layout
+            <ul .tabs>
+              $if showTab ViewTab
+                <li class=#{tabClass ViewTab}>
+                  <a href=@{toMaster $ ViewR page}>view</a>
+              $if showTab EditTab
+                <li class=#{tabClass EditTab}>
+                  <a href=@{toMaster $ EditR page}>edit</a>
+              $if showTab HistoryTab
+                <li class=#{tabClass HistoryTab}>
+                  <a href="">history</a>
+              $if showTab DiscussTab
+                <li class=#{tabClass DiscussTab}
+                  ><a href="">discuss</a>
+          <div #content>
+            ^{content}
       <div #sidebar .yui-b .first>
         <div #logo>
           <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
         $if pgSiteNav layout
           <div .sitenav>
-            sitenav
+            <fieldset>
+              <legend>Site
+              <ul>
+                <li><a href=@{toMaster HomeR}>Front page</a>
+                <li><a href=@{toMaster $ IndexR $ Dir ""}>All pages</a>
+                <li><a href="">Categories</a>
+                <li><a href="">Random page</a>
+                <li><a href="">Recent activity</a>
+                <li><a href="">Upload a file</a></li>
+                <li><a href="" type="application/atom+xml" rel="alternate" title="ATOM Feed">Atom feed</a> <img alt="feed icon" src=@{feedRoute}>
+                <li><a href="">Help</a></li>
+              <form action="" method="post" id="searchform">
+               <input type="text" name="patterns" id="patterns">
+               <input type="submit" name="search" id="search" value="Search">
+              <form action="" method="post" id="goform">
+                <input type="text" name="gotopage" id="gotopage">
+                <input type="submit" name="go" id="go" value="Go">
         $if pgPageTools layout
           <div .pagetools>
-            pagetools for #{pgName layout}
+            $maybe page <- pgName layout
+              <fieldset>
+                <legend>This page</legend>
+                <ul>
+                  <li><a href="">Raw page source</a>
+                  <li><a href="">Printable version</a>
+                  <li><a href="">Delete this page</a>
+                  <li><a href="" type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">Atom feed</a> <img alt="feed icon" src=@{feedRoute}>
+                <!-- TODO exports here -->
   |]
           -- $maybe page <- pgName layout
           --   pagecontrols for #{page}
@@ -216,7 +260,9 @@ getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
   makePage pageLayout{ pgName = Just page
-                     , pgPageTools = True }
+                     , pgPageTools = True
+                     , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
+                     , pgSelectedTab = ViewTab }
            [whamlet|
     <h1 .title>#{page}
     ^{htmlPage contents}
@@ -292,7 +338,9 @@ getEditR page = do
   contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
   (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
   toMaster <- getRouteToMaster
-  makePage pageLayout{ pgName = Just page } $ do
+  makePage pageLayout{ pgName = Just page
+                     , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
+                     , pgSelectedTab = EditTab } $ do
     toWidget [lucius|
       textarea { width: 45em; height: 20em; font-family: monospace; }
       input[type='text'] { width: 45em; } 
