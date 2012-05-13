@@ -138,6 +138,7 @@ mkMessage "Gitit" "messages" "en"
 
 -- | The master site containing a Gitit subsite must be an instance
 -- of this typeclass.
+-- TODO: replace the user functions with isAuthorized from Yesod typeclass?
 class (Yesod master, RenderMessage master FormMessage,
        RenderMessage master GititMessage) => HasGitit master where
   -- | Return user information, if user is logged in, or nothing.
@@ -168,8 +169,12 @@ makeDefaultPage layout content = do
   let tabClass :: Tab -> Text
       tabClass t = if t == pgSelectedTab layout then "selected" else ""
   let showTab t = t `elem` pgTabs layout
+  printLayout <- lookupGetParam "print"
   defaultLayout $ do
-    addStylesheet $ toMaster $ StaticR $ StaticRoute ["css","custom.css"] []
+    addStylesheet $ toMaster $ StaticR $
+      case printLayout of
+           Just _  -> StaticRoute ["css","print.css"] []
+           Nothing -> StaticRoute ["css","custom.css"] []
     addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
     [whamlet|
     <div #doc3 .yui-t1>
@@ -221,7 +226,7 @@ makeDefaultPage layout content = do
                 <legend>This page</legend>
                 <ul>
                   <li><a href=@{toMaster $ RawR page}>Raw page source</a>
-                  <li><a href="">Printable version</a>
+                  <li><a href="@{toMaster $ ViewR page}?print">Printable version</a>
                   <li><a href="">Delete this page</a>
                   <li><a href="" type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">Atom feed</a> <img alt="feed icon" src=@{feedRoute}>
                 <!-- TODO exports here -->
