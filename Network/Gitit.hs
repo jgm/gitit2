@@ -306,7 +306,7 @@ upDir :: (Route Gitit -> Route master) -> [Text] -> GWidget Gitit master ()
 upDir toMaster fs = do
   let lastdir = case reverse fs of
                      (f:_)  -> f
-                     []     -> "[root]"
+                     []     -> "\x2302"
   [whamlet|<a href=@{toMaster $ IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}>#{lastdir}/</a>|]
 
 indexListing :: (Route Gitit -> Route master) -> Text -> Resource -> GWidget Gitit master ()
@@ -314,18 +314,18 @@ indexListing toMaster dir r = do
   let pref = if T.null dir
                 then ""
                 else dir <> "/"
-  let fullName f = pref <> f'
-                     where Page f' = pageForPath f
+  let shortName f = f' where Page f' = pageForPath f
+  let fullName f = pref <> shortName f
   let cls :: FilePath -> Text
       cls f = if isPageFile f then "page" else "upload"
   case r of
     (FSFile f) -> [whamlet|
           <li .#{cls f}>
-            <a href=@{toMaster $ ViewR $ Page $ fullName f}>#{fullName f}</a>
+            <a href=@{toMaster $ ViewR $ Page $ fullName f}>#{shortName f}</a>
           |]
     (FSDirectory f) -> [whamlet|
           <li .folder>
-            <a href=@{toMaster $ IndexR $ Dir $ fullName f}>#{fullName f}</a>
+            <a href=@{toMaster $ IndexR $ Dir $ fullName f}>#{shortName f}</a>
           |]
 
 getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master ByteString
