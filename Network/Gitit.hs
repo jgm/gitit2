@@ -155,6 +155,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_index/*Dir  IndexR GET
 /favicon.ico FaviconR GET
 /robots.txt RobotsR GET
+/_raw/*Page RawR GET
 /_edit/*Page  EditR GET POST
 /*Page     ViewR GET
 |]
@@ -219,7 +220,7 @@ makeDefaultPage layout content = do
               <fieldset>
                 <legend>This page</legend>
                 <ul>
-                  <li><a href="">Raw page source</a>
+                  <li><a href=@{toMaster $ RawR page}>Raw page source</a>
                   <li><a href="">Printable version</a>
                   <li><a href="">Delete this page</a>
                   <li><a href="" type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">Atom feed</a> <img alt="feed icon" src=@{feedRoute}>
@@ -269,6 +270,9 @@ isDiscussPageFile _ = False
 
 getHomeR :: HasGitit master => GHandler Gitit master RepHtml
 getHomeR = getViewR (Page "Front Page")
+
+getRawR :: HasGitit master => Page -> GHandler Gitit master RepPlain
+getRawR page = RepPlain . toContent <$> getRawContents page Nothing
 
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
