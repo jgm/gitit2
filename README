@@ -1,0 +1,9 @@
+To install using cabal-dev:
+
+   cabal update
+   cabal-dev install -fblaze_html_0_5
+
+You'll need a repository at wikidata.
+
+Lots of things don't yet work, e.g. wikilinks!
+
