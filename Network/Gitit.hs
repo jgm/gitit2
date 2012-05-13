@@ -23,6 +23,7 @@ import Data.List (isInfixOf, inits)
 import Data.FileStore
 import System.FilePath
 import Text.Pandoc
+import Text.Pandoc.Shared (stringify)
 import Control.Applicative
 import qualified Data.Text as T
 import Data.Text (Text)
@@ -121,6 +122,7 @@ data PageLayout = PageLayout{
   }
 
 -- | Default page layout.
+pageLayout :: PageLayout
 pageLayout = PageLayout{
     pgName           = Nothing
   , pgRevision       = Nothing
@@ -228,6 +230,18 @@ makeDefaultPage layout content = do
 
 -- HANDLERS and utility functions, not exported:
 
+-- | Convert links with no URL to wikilinks.
+convertWikiLinks :: Inline -> GHandler Gitit master Inline
+convertWikiLinks (Link ref ("", "")) = do
+  toMaster <- getRouteToMaster
+  toUrl <- getUrlRender
+  let route = ViewR $ Page $ T.pack $ stringify ref
+  return $ Link ref (T.unpack $ toUrl $ toMaster route, "")
+convertWikiLinks x = return x
+
+addWikiLinks :: Pandoc -> GHandler Gitit master Pandoc
+addWikiLinks = bottomUpM convertWikiLinks
+
 pathForPage :: Page -> FilePath
 pathForPage (Page page) = T.unpack page <.> "page"
 
@@ -259,13 +273,14 @@ getHomeR = getViewR (Page "Front Page")
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   contents <- getRawContents page Nothing
+  htmlContents <- contentsToHtml contents
   makePage pageLayout{ pgName = Just page
                      , pgPageTools = True
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
                      , pgSelectedTab = ViewTab }
            [whamlet|
     <h1 .title>#{page}
-    ^{htmlPage contents}
+    ^{toWikiPage htmlContents}
   |]
 
 getIndexR :: HasGitit master => Dir -> GHandler Gitit master RepHtml
@@ -318,17 +333,24 @@ getRawContents page rev = do
   fs <- filestore <$> getYesodSub
   liftIO $ retrieve fs (pathForPage page) rev
 
-htmlPage :: HasGitit master => ByteString -> GWidget Gitit master ()
-htmlPage contents = do
-  let mathjax_url = "https://d3eoax9i5htok0.cloudfront.net/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+contentsToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
+contentsToHtml contents = do
+  let doc = readMarkdown defaultParserState{ stateSmart = True }
+                   $ toString contents
+  doc' <- addWikiLinks doc
   let rendered = writeHtml defaultWriterOptions{
                      writerWrapText = False
                    , writerHtml5 = True
                    , writerHighlight = True
-                   , writerHTMLMathMethod = MathJax $ T.unpack mathjax_url }
-                   $ readMarkdown defaultParserState{
-                      stateSmart = True }
-                   $ toString contents
+                   , writerHTMLMathMethod = MathJax $ T.unpack mathjax_url } doc'
+  return rendered
+
+-- TODO replace with something in configuration.
+mathjax_url :: Text
+mathjax_url = "https://d3eoax9i5htok0.cloudfront.net/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+
+toWikiPage :: HasGitit master => Html -> GWidget Gitit master ()
+toWikiPage rendered = do
   addScriptRemote mathjax_url
   toWidget rendered
 
