@@ -192,16 +192,16 @@ makeDefaultPage layout content = do
             <ul .tabs>
               $if showTab ViewTab
                 <li class=#{tabClass ViewTab}>
-                  <a href=@{toMaster $ ViewR page}>view</a>
+                  <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
               $if showTab EditTab
                 <li class=#{tabClass EditTab}>
-                  <a href=@{toMaster $ EditR page}>edit</a>
+                  <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
               $if showTab HistoryTab
                 <li class=#{tabClass HistoryTab}>
-                  <a href="">history</a>
+                  <a href="">_{MsgHistory}</a>
               $if showTab DiscussTab
                 <li class=#{tabClass DiscussTab}
-                  ><a href="">discuss</a>
+                  ><a href="">_{MsgDiscuss}</a>
           <div #content>
             ^{content}
       <div #sidebar .yui-b .first>
@@ -212,30 +212,30 @@ makeDefaultPage layout content = do
             <fieldset>
               <legend>Site
               <ul>
-                <li><a href=@{toMaster HomeR}>Front page</a>
-                <li><a href=@{toMaster $ IndexR $ Dir ""}>All pages</a>
-                <li><a href="">Categories</a>
-                <li><a href=@{toMaster $ RandomR}>Random page</a>
-                <li><a href="">Recent activity</a>
-                <li><a href="">Upload a file</a></li>
-                <li><a href="" type="application/atom+xml" rel="alternate" title="ATOM Feed">Atom feed</a> <img alt="feed icon" src=@{feedRoute}>
-                <li><a href=@{toMaster HelpR}>Help</a></li>
+                <li><a href=@{toMaster HomeR}>_{MsgFrontPage}</a>
+                <li><a href=@{toMaster $ IndexR $ Dir ""}>_{MsgDirectory}</a>
+                <li><a href="">_{MsgCategories}</a>
+                <li><a href=@{toMaster $ RandomR}>_{MsgRandomPage}</a>
+                <li><a href="">_{MsgRecentActivity}</a>
+                <li><a href="">_{MsgUploadFile}</a></li>
+                <li><a href="" type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
+                <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
               <form action="" method="post" id="searchform">
                <input type="text" name="patterns" id="patterns">
-               <input type="submit" name="search" id="search" value="Search">
+               <input type="submit" name="search" id="search" value="_{MsgSearch}">
               <form action="" method="post" id="goform">
                 <input type="text" name="gotopage" id="gotopage">
-                <input type="submit" name="go" id="go" value="Go">
+                <input type="submit" name="go" id="go" value="_{MsgGo}">
         $if pgPageTools layout
           <div .pagetools>
             $maybe page <- pgName layout
               <fieldset>
                 <legend>This page</legend>
                 <ul>
-                  <li><a href=@{toMaster $ RawR page}>Raw page source</a>
-                  <li><a href="@{toMaster $ ViewR page}?print">Printable version</a>
-                  <li><a href=@{toMaster $ DeleteR page}>Delete this page</a>
-                  <li><a href="" type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">Atom feed</a> <img alt="feed icon" src=@{feedRoute}>
+                  <li><a href=@{toMaster $ RawR page}>_{MsgRawPageSource}</a>
+                  <li><a href="@{toMaster $ ViewR page}?print">_{MsgPrintableVersion}</a>
+                  <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
+                  <li><a href="" type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                 <!-- TODO exports here -->
   |]
           -- $maybe page <- pgName layout
