@@ -6,6 +6,7 @@ module Text.HTML.SanitizeXSS
     , filterTags
     , safeTags
     , sanitizeAttribute
+    , sanitaryURI
     ) where
 
 import Text.HTML.SanitizeXSS.Css

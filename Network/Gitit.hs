@@ -29,10 +29,10 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.UTF8 (toString)
-import Text.Blaze.Internal (preEscapedText)
 import Text.Blaze.Html hiding (contents)
-import Text.HTML.SanitizeXSS (sanitizeBalance)
+import Text.HTML.SanitizeXSS (sanitizeAttribute, sanitaryURI)
 import Data.Monoid (Monoid, mappend)
+import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
@@ -252,6 +252,24 @@ convertWikiLinks x = return x
 addWikiLinks :: Pandoc -> GHandler Gitit master Pandoc
 addWikiLinks = bottomUpM convertWikiLinks
 
+sanitizePandoc :: Pandoc -> Pandoc
+sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
+  where sanitizeBlock (RawBlock _ _) = Text.Pandoc.Null
+        sanitizeBlock (CodeBlock (id',classes,attrs) x) =
+          CodeBlock (id', classes, sanitizeAttrs attrs) x
+        sanitizeBlock x = x
+        sanitizeInline (RawInline _ _) = Str ""
+        sanitizeInline (Code (id',classes,attrs) x) =
+          Code (id', classes, sanitizeAttrs attrs) x
+        sanitizeInline (Link lab (src,tit)) = Link lab (sanitizeURI src,tit)
+        sanitizeInline (Image alt (src,tit)) = Link alt (sanitizeURI src,tit)
+        sanitizeInline x = x
+        sanitizeURI src = if sanitaryURI (T.pack src) then src else ""
+        sanitizeAttrs = mapMaybe sanitizeAttr
+        sanitizeAttr (x,y) = case sanitizeAttribute (T.pack x, T.pack y) of
+                                  Just (w,z) -> Just (T.unpack w, T.unpack z)
+                                  Nothing    -> Nothing
+
 pathForPage :: Page -> FilePath
 pathForPage (Page page) = T.unpack page <.> "page"
 
@@ -358,15 +376,14 @@ getRawContents page rev = do
 
 contentsToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
 contentsToHtml contents = do
-  let doc = readMarkdown defaultParserState{ stateSmart = True }
-                   $ toString contents
-  doc' <- addWikiLinks doc
-  let rendered = writeHtmlString defaultWriterOptions{
+  let doc = readMarkdown defaultParserState{ stateSmart = True } $ toString contents
+  doc' <- sanitizePandoc <$> addWikiLinks doc
+  let rendered = writeHtml defaultWriterOptions{
                      writerWrapText = False
                    , writerHtml5 = True
                    , writerHighlight = True
                    , writerHTMLMathMethod = MathJax $ T.unpack mathjax_url } doc'
-  return $ preEscapedText . sanitizeBalance . T.pack $ rendered
+  return rendered
 
 -- TODO replace with something in configuration.
 mathjax_url :: Text
