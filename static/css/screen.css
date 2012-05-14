@@ -3,6 +3,7 @@
 html { background: #f9f9f9; color: black; }
 body { margin: 10px; }
 
+label { display: block; }
 fieldset { border: 1px solid #ccc; padding: 1em; }
 legend { font-weight: bold; margin-left: 1em; padding: 4px; }
 textarea, input[type='text'], input[type='password'], select { border: 1px solid #ccc; background: #fff; }

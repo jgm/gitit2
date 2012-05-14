@@ -485,16 +485,12 @@ getEditR page = do
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
                      , pgSelectedTab = EditTab } $ do
-    toWidget [lucius|
-      textarea { width: 45em; height: 20em; font-family: monospace; }
-      input[type='text'] { width: 45em; } 
-      label { display: block; font-weight: bold; font-size: 80%; font-family: sans-serif; }
-    |]
     [whamlet|
       <h1>#{page}</h1>
-      <form method=post action=@{toMaster $ EditR page} enctype=#{enctype}>
-        ^{form}
-        <input type=submit>
+      <div #editform>
+        <form method=post action=@{toMaster $ EditR page} enctype=#{enctype}>
+          ^{form}
+          <input type=submit>
     |]
 
 postEditR :: HasGitit master
