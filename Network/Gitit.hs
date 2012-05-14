@@ -28,8 +28,10 @@ import Control.Applicative
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Lazy.UTF8 (toString )
+import Data.ByteString.Lazy.UTF8 (toString)
+import Text.Blaze.Internal (preEscapedText)
 import Text.Blaze.Html hiding (contents)
+import Text.HTML.SanitizeXSS (sanitizeBalance)
 import Data.Monoid (Monoid, mappend)
 import System.Random (randomRIO)
 
@@ -359,12 +361,12 @@ contentsToHtml contents = do
   let doc = readMarkdown defaultParserState{ stateSmart = True }
                    $ toString contents
   doc' <- addWikiLinks doc
-  let rendered = writeHtml defaultWriterOptions{
+  let rendered = writeHtmlString defaultWriterOptions{
                      writerWrapText = False
                    , writerHtml5 = True
                    , writerHighlight = True
                    , writerHTMLMathMethod = MathJax $ T.unpack mathjax_url } doc'
-  return rendered
+  return $ preEscapedText . sanitizeBalance . T.pack $ rendered
 
 -- TODO replace with something in configuration.
 mathjax_url :: Text
