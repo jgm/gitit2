@@ -31,6 +31,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.UTF8 (toString )
 import Text.Blaze.Html hiding (contents)
 import Data.Monoid (Monoid, mappend)
+import System.Random (randomRIO)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -156,6 +157,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_index/*Dir  IndexR GET
 /favicon.ico FaviconR GET
 /robots.txt RobotsR GET
+/_random RandomR GET
 /_raw/*Page RawR GET
 /_edit/*Page  EditR GET POST
 /*Page     ViewR GET
@@ -208,7 +210,7 @@ makeDefaultPage layout content = do
                 <li><a href=@{toMaster HomeR}>Front page</a>
                 <li><a href=@{toMaster $ IndexR $ Dir ""}>All pages</a>
                 <li><a href="">Categories</a>
-                <li><a href="">Random page</a>
+                <li><a href=@{toMaster $ RandomR}>Random page</a>
                 <li><a href="">Recent activity</a>
                 <li><a href="">Upload a file</a></li>
                 <li><a href="" type="application/atom+xml" rel="alternate" title="ATOM Feed">Atom feed</a> <img alt="feed icon" src=@{feedRoute}>
@@ -275,6 +277,16 @@ isDiscussPageFile _ = False
 
 getHomeR :: HasGitit master => GHandler Gitit master RepHtml
 getHomeR = getViewR (Page "Front Page")
+
+getRandomR :: HasGitit master => GHandler Gitit master RepHtml
+getRandomR = do
+  fs <- filestore <$> getYesodSub
+  files <- liftIO $ index fs
+  let pages = [x | x <- files, isPageFile x && not (isDiscussPageFile x)]
+  pagenum <- liftIO $ randomRIO (0, length pages - 1)
+  let thepage = pages !! pagenum
+  toMaster <- getRouteToMaster
+  redirect $ toMaster $ ViewR $ pageForPath thepage
 
 getRawR :: HasGitit master => Page -> GHandler Gitit master RepPlain
 getRawR page = RepPlain . toContent <$> getRawContents page Nothing
