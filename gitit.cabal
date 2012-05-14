@@ -19,6 +19,8 @@ flag executable
 
 library
     exposed-modules: Network.Gitit
+    -- temporary:
+    other-modules: Text.HTML.SanitizeXSS, Text.HTML.SanitizeXSS.Css
     extensions: TemplateHaskell
                 QuasiQuotes
                 OverloadedStrings
@@ -59,8 +61,14 @@ library
                  , blaze-html                    >= 0.5        && < 0.6
                  , blaze-markup                  >= 0.5        && < 0.6
                  , random                        >= 1.0        && < 1.1
-                 , xss-sanitize                  >= 0.3.1      && < 0.4
                  , pandoc                        >= 1.9.3      && < 1.10
+                 -- , xss-sanitize                  >= 0.3.1      && < 0.4
+                 -- FOR xss-sanitize, can remove after it is updated:
+                 , tagsoup                       >= 0.12.2     && < 1
+                 , css-text                      >= 0.1.1      && < 0.2
+                 , attoparsec                    >= 0.10.0.3   && < 1
+                 , containers                    >= 0.4        && < 0.5
+                 , network                       >= 2.3        && < 2.4
 
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
 
