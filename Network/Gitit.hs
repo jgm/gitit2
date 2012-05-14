@@ -30,7 +30,7 @@ import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
-import Text.HTML.SanitizeXSS (sanitizeAttribute, sanitaryURI)
+import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
 import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
@@ -264,7 +264,9 @@ sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
         sanitizeInline (Link lab (src,tit)) = Link lab (sanitizeURI src,tit)
         sanitizeInline (Image alt (src,tit)) = Link alt (sanitizeURI src,tit)
         sanitizeInline x = x
-        sanitizeURI src = if sanitaryURI (T.pack src) then src else ""
+        sanitizeURI src = case sanitizeAttribute ("href", T.pack src) of
+                               Just (w,z) -> T.unpack z
+                               Nothing    -> ""
         sanitizeAttrs = mapMaybe sanitizeAttr
         sanitizeAttr (x,y) = case sanitizeAttribute (T.pack x, T.pack y) of
                                   Just (w,z) -> Just (T.unpack w, T.unpack z)

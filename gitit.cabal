@@ -19,8 +19,6 @@ flag executable
 
 library
     exposed-modules: Network.Gitit
-    -- temporary:
-    other-modules: Text.HTML.SanitizeXSS, Text.HTML.SanitizeXSS.Css
     extensions: TemplateHaskell
                 QuasiQuotes
                 OverloadedStrings
@@ -33,7 +31,7 @@ library
                 NoMonomorphismRestriction
 
     build-depends: base                          >= 4          && < 5
-                 , yesod-platform                >= 1.0        && < 1.1
+                 -- , yesod-platform                >= 1.0        && < 1.1
                  , yesod                         >= 1.0        && < 1.1
                  , yesod-static                  >= 1.0        && < 1.1
                  , yesod-default                 >= 1.0        && < 1.1
@@ -62,13 +60,7 @@ library
                  , blaze-markup                  >= 0.5        && < 0.6
                  , random                        >= 1.0        && < 1.1
                  , pandoc                        >= 1.9.3      && < 1.10
-                 -- , xss-sanitize                  >= 0.3.1      && < 0.4
-                 -- FOR xss-sanitize, can remove after it is updated:
-                 , tagsoup                       >= 0.12.2     && < 1
-                 , css-text                      >= 0.1.1      && < 0.2
-                 , attoparsec                    >= 0.10.0.3   && < 1
-                 , containers                    >= 0.4        && < 0.5
-                 , network                       >= 2.3        && < 2.4
+                 , xss-sanitize                  >= 0.3.2      && < 0.4
 
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
 
