@@ -155,6 +155,7 @@ class (Yesod master, RenderMessage master FormMessage,
 mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
  ] [parseRoutesNoCheck|
 / HomeR GET
+/_help HelpR GET
 /_static StaticR Static getStatic
 /_index/*Dir  IndexR GET
 /favicon.ico FaviconR GET
@@ -216,7 +217,7 @@ makeDefaultPage layout content = do
                 <li><a href="">Recent activity</a>
                 <li><a href="">Upload a file</a></li>
                 <li><a href="" type="application/atom+xml" rel="alternate" title="ATOM Feed">Atom feed</a> <img alt="feed icon" src=@{feedRoute}>
-                <li><a href="">Help</a></li>
+                <li><a href=@{toMaster HelpR}>Help</a></li>
               <form action="" method="post" id="searchform">
                <input type="text" name="patterns" id="patterns">
                <input type="submit" name="search" id="search" value="Search">
@@ -297,8 +298,13 @@ isDiscussPageFile :: FilePath -> Bool
 isDiscussPageFile ('@':xs) = isPageFile xs
 isDiscussPageFile _ = False
 
+-- TODO : make the front page configurable
 getHomeR :: HasGitit master => GHandler Gitit master RepHtml
 getHomeR = getViewR (Page "Front Page")
+
+-- TODO : make the help page configurable
+getHelpR :: HasGitit master => GHandler Gitit master RepHtml
+getHelpR = getViewR (Page "Help")
 
 getRandomR :: HasGitit master => GHandler Gitit master RepHtml
 getRandomR = do
