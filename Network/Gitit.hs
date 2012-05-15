@@ -154,7 +154,10 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /robots.txt RobotsR GET
 /_random RandomR GET
 /_raw/*Page RawR GET
-/_edit/*Page  EditR GET POST
+/_edit/*Page  EditR GET
+/_revision/#RevisionId/*Page RevisionR GET
+/_revert/#RevisionId/*Page RevertR GET
+/_update/#RevisionId/*Page UpdateR POST
 /_delete/*Page DeleteR GET POST
 /*Page     ViewR GET
 |]
@@ -312,7 +315,7 @@ getRandomR = do
   redirect $ toMaster $ ViewR $ pageForPath thepage
 
 getRawR :: HasGitit master => Page -> GHandler Gitit master RepPlain
-getRawR page = RepPlain . toContent <$> getRawContents page Nothing
+getRawR page = RepPlain . toContent . snd <$> getRawContents page Nothing
 
 getDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getDeleteR page = do
@@ -353,8 +356,14 @@ postDeleteR page = do
   redirect (toMaster HomeR)
 
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
-getViewR page = do
-  contents <- getRawContents page Nothing
+getViewR = view Nothing
+
+getRevisionR :: HasGitit master => RevisionId -> Page -> GHandler Gitit master RepHtml
+getRevisionR rev = view (Just rev)
+
+view :: HasGitit master => Maybe RevisionId -> Page -> GHandler Gitit master RepHtml
+view mbrev page = do
+  (_,contents) <- getRawContents page mbrev
   htmlContents <- contentsToHtml contents
   makePage pageLayout{ pgName = Just page
                      , pgPageTools = True
@@ -363,6 +372,8 @@ getViewR page = do
            do setTitle $ toMarkup page
               [whamlet|
                 <h1 .title>#{page}
+                $maybe rev <- mbrev
+                  <h2 .revision>#{rev}
                 ^{toWikiPage htmlContents}
               |]
 
@@ -411,10 +422,12 @@ indexListing toMaster dir r = do
             <a href=@{toMaster $ IndexR $ Dir $ fullName f}>#{shortName f}</a>
           |]
 
-getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master ByteString
+getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master (RevisionId, ByteString)
 getRawContents page rev = do
   fs <- filestore <$> getYesodSub
-  liftIO $ retrieve fs (pathForPage page) rev
+  revid <- liftIO $ latest fs (pathForPage page)
+  cont <- liftIO $ retrieve fs (pathForPage page) rev
+  return (revid, cont)
 
 contentsToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
 contentsToHtml contents = do
@@ -437,9 +450,17 @@ toWikiPage rendered = do
   toWidget rendered
 
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
-getEditR page = do
+getEditR = edit Nothing
+
+getRevertR :: HasGitit master => RevisionId -> Page -> GHandler Gitit master RepHtml
+getRevertR rev = edit (Just rev)
+
+edit :: HasGitit master => Maybe RevisionId -> Page -> GHandler Gitit master RepHtml
+edit mbrev page = do
   requireUser
-  contents <- Textarea . T.pack . toString <$> getRawContents page Nothing
+  (revid,cont) <- getRawContents page mbrev
+  let contents = Textarea . T.pack . toString $ cont
+  -- TODO change comment if reverting, also disable textarea
   (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
   toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Just page
@@ -448,14 +469,14 @@ getEditR page = do
     [whamlet|
       <h1>#{page}</h1>
       <div #editform>
-        <form method=post action=@{toMaster $ EditR page} enctype=#{enctype}>
+        <form method=post action=@{toMaster $ UpdateR revid page} enctype=#{enctype}>
           ^{form}
           <input type=submit>
     |]
 
-postEditR :: HasGitit master
-          => Page -> GHandler Gitit master RepHtml
-postEditR page = do
+postUpdateR :: HasGitit master
+          => RevisionId -> Page -> GHandler Gitit master RepHtml
+postUpdateR revid page = do
   user <- requireUser
   ((res, _form), _enctype) <- runFormPost $ editForm Nothing
   fs <- filestore <$> getYesodSub
@@ -467,7 +488,8 @@ postEditR page = do
           -- TODO handle mergeinfo
           return ()
        _             -> return ()
-  getViewR page
+  toMaster <- getRouteToMaster
+  redirect $ toMaster $ ViewR page
 
 data Edit = Edit { editContents :: Textarea
                  , editComment  :: Text
