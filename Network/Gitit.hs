@@ -238,8 +238,6 @@ makeDefaultPage layout content = do
                   <li><a href="" type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                 <!-- TODO exports here -->
   |]
-          -- $maybe page <- pgName layout
-          --   pagecontrols for #{page}
 
 -- HANDLERS and utility functions, not exported:
 
