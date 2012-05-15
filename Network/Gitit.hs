@@ -49,22 +49,7 @@ data Gitit = Gitit{ config        :: GititConfig  -- ^ Wiki config options.
                   , getStatic     :: Static       -- ^ Static subsite.
                   }
 
-instance Yesod Gitit where
-  defaultLayout contents = do
-    PageContent title headTags bodyTags <- widgetToPageContent $ do
-      addWidget contents
-    mmsg <- getMessage
-    hamletToRepHtml [hamlet|
-        $doctype 5
-        <html>
-          <head>
-             <title>#{title}
-             ^{headTags}
-          <body>
-             $maybe msg  <- mmsg
-               <div #message>#{msg}
-             ^{bodyTags}
-        |]
+instance Yesod Gitit
 
 -- | Configuration for a gitit wiki.
 data GititConfig = GititConfig{
@@ -374,11 +359,12 @@ getViewR page = do
   makePage pageLayout{ pgName = Just page
                      , pgPageTools = True
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
-                     , pgSelectedTab = ViewTab }
-           [whamlet|
-    <h1 .title>#{page}
-    ^{toWikiPage htmlContents}
-  |]
+                     , pgSelectedTab = ViewTab } $
+           do setTitle $ toMarkup page
+              [whamlet|
+                <h1 .title>#{page}
+                ^{toWikiPage htmlContents}
+              |]
 
 getIndexR :: HasGitit master => Dir -> GHandler Gitit master RepHtml
 getIndexR (Dir dir) = do

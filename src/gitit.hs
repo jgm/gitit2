@@ -10,7 +10,22 @@ mkYesod "Master" [parseRoutes|
 / SubsiteR Gitit getGitit
 |]
 
-instance Yesod Master
+instance Yesod Master where
+  defaultLayout contents = do
+    PageContent title headTags bodyTags <- widgetToPageContent $ do
+      addWidget contents
+    mmsg <- getMessage
+    hamletToRepHtml [hamlet|
+        $doctype 5
+        <html>
+          <head>
+             <title>#{title}
+             ^{headTags}
+          <body>
+             $maybe msg  <- mmsg
+               <p.message>#{msg}
+             ^{bodyTags}
+        |]
 
 instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage
