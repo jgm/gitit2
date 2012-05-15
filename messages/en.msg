@@ -21,3 +21,4 @@ DeleteThisPage: Delete this page
 ConfirmDelete page@Page: Are you sure you want to delete #{page}?
 Delete: Delete
 Deleted page@Page: Deleted #{page}
+Reverted rev@RevisionId: Reverted to #{rev}

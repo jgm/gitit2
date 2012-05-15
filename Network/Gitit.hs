@@ -349,9 +349,11 @@ postDeleteR page = do
   user <- requireUser
   fs <- filestore <$> getYesodSub
   toMaster <- getRouteToMaster
+  mr <- getMessageRender
   fileToDelete <- runInputPost $ ireq textField "fileToDelete"
   liftIO $ FS.delete fs (T.unpack fileToDelete)
-            (Author (gititUserName user) (gititUserEmail user)) "_{MsgDeleted page}"
+            (Author (gititUserName user) (gititUserEmail user))
+            (T.unpack $ mr $ MsgDeleted page)
   setMessageI $ MsgDeleted page
   redirect (toMaster HomeR)
 
@@ -460,12 +462,17 @@ edit mbrev page = do
   requireUser
   (revid,cont) <- getRawContents page mbrev
   let contents = Textarea . T.pack . toString $ cont
-  -- TODO change comment if reverting, also disable textarea
-  (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = "" }
+  mr <- getMessageRender
+  let comment = maybe "" (mr . MsgReverted) mbrev
+  (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = comment }
   toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
                      , pgSelectedTab = EditTab } $ do
+    toWidget [julius|
+       $(document).ready(function (){
+          $('textarea').attr('readonly','readonly').attr('style','color: gray;');
+          }); |]
     [whamlet|
       <h1>#{page}</h1>
       <div #editform>
