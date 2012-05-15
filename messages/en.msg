@@ -18,4 +18,6 @@ Go: Go
 RawPageSource:  Raw page source
 PrintableVersion: Printable version
 DeleteThisPage: Delete this page
-
+ConfirmDelete page@Page: Are you sure you want to delete #{page}?
+Delete: Delete
+Deleted page@Page: Deleted #{page}

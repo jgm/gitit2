@@ -15,7 +15,7 @@ module Network.Gitit ( GititConfig (..)
                      , makeDefaultPage
                      ) where
 
-import Yesod
+import Yesod hiding (MsgDelete)
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
 import Language.Haskell.TH hiding (dyn)
@@ -84,6 +84,9 @@ instance PathMultiPiece Page where
 instance ToMarkup Page where
   toMarkup (Page x) = toMarkup x
 
+instance ToMessage Page where
+  toMessage (Page x) = x
+
 instance ToMarkup (Maybe Page) where
   toMarkup (Just x) = toMarkup x
   toMarkup Nothing  = ""
@@ -100,6 +103,9 @@ instance PathMultiPiece Dir where
 
 instance ToMarkup Dir where
   toMarkup (Dir x) = toMarkup x
+
+instance ToMessage Dir where
+  toMessage (Dir x) = x
 
 -- | A user.
 data GititUser = GititUser{ gititUserName  :: String
@@ -183,6 +189,7 @@ makeDefaultPage layout content = do
            Just _  -> StaticRoute ["css","print.css"] []
            Nothing -> StaticRoute ["css","custom.css"] []
     addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
+    toWidget $ [lucius|input.hidden { display: none; } |]
     [whamlet|
     <div #doc3 .yui-t1>
       <div #yui-main>
@@ -324,6 +331,7 @@ getRawR page = RepPlain . toContent <$> getRawContents page Nothing
 
 getDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getDeleteR page = do
+  requireUser
   fs <- filestore <$> getYesodSub
   pageTest <- liftIO $ try $ latest fs (pathForPage page)
   fileToDelete <- case pageTest of
@@ -332,64 +340,32 @@ getDeleteR page = do
                          fileTest <- liftIO $ try $ latest fs $ pathForFile page
                          case fileTest of
                               Right _     -> return $ pathForFile page -- a file
-                              Left FS.NotFound -> return ""
+                              Left FS.NotFound  -> fail (show FS.NotFound)
                               Left e      -> fail (show e)
                        Left e        -> fail (show e)
-  makePage pageLayout [whamlet|<p>#{fileToDelete}|]
+  toMaster <- getRouteToMaster
+  makePage pageLayout{ pgName = Just page
+                     , pgTabs = []
+                     } $ do
+    [whamlet|
+      <h1>#{page}</h1>
+      <div #deleteform>
+        <form method=post action=@{toMaster $ DeleteR page}>
+          <p>_{MsgConfirmDelete page}
+          <input type=text class=hidden name=fileToDelete value=#{fileToDelete}>
+          <input type=submit value=_{MsgDelete}>
+    |]
 
 postDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
-postDeleteR page = undefined
-
-
-{-
-confirmDelete :: Handler
-confirmDelete = do
-  page <- getPage
-  fs <- getFileStore
-  -- determine whether there is a corresponding page, and if not whether there
-  -- is a corresponding file
-  pageTest <- liftIO $ try $ latest fs (pathForPage page)
-  fileToDelete <- case pageTest of
-                       Right _        -> return $ pathForPage page  -- a page
-                       Left  NotFound -> do
-                         fileTest <- liftIO $ try $ latest fs page
-                         case fileTest of
-                              Right _       -> return page  -- a source file
-                              Left NotFound -> return ""
-                              Left e        -> fail (show e)
-                       Left e        -> fail (show e)
-  let confirmForm = gui "" <<
-        [ p << "Are you sure you want to delete this page?"
-        , input ! [thetype "text", name "filetodelete",
-                   strAttr "style" "display: none;", value fileToDelete]
-        , submit "confirm" "Yes, delete it!"
-        , stringToHtml " "
-        , submit "cancel" "No, keep it!"
-        , br ]
-  formattedPage defaultPageLayout{ pgTitle = "Delete " ++ page ++ "?" } $
-    if null fileToDelete
-       then ulist ! [theclass "messages"] << li <<
-            "There is no file or page by that name."
-       else confirmForm
-
-deletePage :: Handler
-deletePage = withData $ \(params :: Params) -> do
-   page <- getPage
-  let file = pFileToDelete params
-  mbUser <- getLoggedInUser
-  (user, email) <- case mbUser of
-                        Nothing -> return ("Anonymous", "")
-                        Just u  -> return (uUsername u, uEmail u)
-  let author = Author user email
-  let descrip = "Deleted using web interface."
-  base' <- getWikiBase
-  if pConfirm params && (file == page || file == page <.> "page")
-     then do
-       fs <- getFileStore
-       liftIO $ delete fs file author descrip
-       seeOther (base' ++ "/") $ toResponse $ p << "File deleted"
-     else seeOther (base' ++ urlForPage page) $ toResponse $ p << "Not deleted"
--}
+postDeleteR page = do
+  user <- requireUser
+  fs <- filestore <$> getYesodSub
+  toMaster <- getRouteToMaster
+  fileToDelete <- runInputPost $ ireq textField "fileToDelete"
+  liftIO $ FS.delete fs (T.unpack fileToDelete)
+            (Author (gititUserName user) (gititUserEmail user)) "_{MsgDeleted page}"
+  setMessageI $ MsgDeleted page
+  redirect (toMaster HomeR)
 
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
