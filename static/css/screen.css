@@ -118,7 +118,7 @@ pre.matches span.highlighted { background-color: yellow; }
 /* .req is used to hide a honeypot in a form */
 .req { display: none; }
 
-ul.messages > li { color: red; list-style: square; font-weight: bold; }
+div#message { color: red; font-weight: bold; }
 
 ul.tabs { padding: 0; margin: 0 0 1px 0; }
 ul.tabs li { display: inline; border: 1px solid #ccc; border-bottom: none; padding: 0 0.6em 0 0.6em;
