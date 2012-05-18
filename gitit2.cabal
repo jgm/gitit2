@@ -20,7 +20,7 @@ flag executable
   default:       True
 
 library
-    exposed-modules: Network.Gitit
+    exposed-modules: Network.Gitit2
     extensions: TemplateHaskell
                 QuasiQuotes
                 OverloadedStrings

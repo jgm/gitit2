@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, MultiParamTypeClasses, TypeFamilies,
     OverloadedStrings #-}
-import Network.Gitit
+import Network.Gitit2
 import Yesod
 import Yesod.Static
 import Data.FileStore

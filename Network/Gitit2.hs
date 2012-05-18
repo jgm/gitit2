@@ -1,19 +1,19 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              ScopedTypeVariables #-}
-module Network.Gitit ( GititConfig (..)
-                     , Page (..)
-                     , Dir (..)
-                     , HasGitit (..)
-                     , Gitit (..)
-                     , GititUser (..)
-                     , GititMessage (..)
-                     , Route (..)
-                     , Tab (..)
-                     , PageLayout (..)
-                     , pageLayout
-                     , makeDefaultPage
-                     ) where
+module Network.Gitit2 ( GititConfig (..)
+                      , Page (..)
+                      , Dir (..)
+                      , HasGitit (..)
+                      , Gitit (..)
+                      , GititUser (..)
+                      , GititMessage (..)
+                      , Route (..)
+                      , Tab (..)
+                      , PageLayout (..)
+                      , pageLayout
+                      , makeDefaultPage
+                      ) where
 
 import Yesod hiding (MsgDelete)
 import Yesod.Static
