@@ -1,11 +1,13 @@
-name:              gitit
+name:              gitit2
 version:           0.0.0
 license:           GPL
 license-file:      LICENSE
 author:            John MacFarlane
 maintainer:        John MacFarlane
-synopsis:          Gitit wiki server.
-description:       TBD
+synopsis:          Next-generation version of gitit wiki server.
+description:       A reimplementation of gitit in Yesod.  This is
+                   a work in progress: many of gitit's features
+                   are not yet implemented.
 category:          Web
 stability:         Experimental
 cabal-version:     >= 1.8
@@ -64,14 +66,14 @@ library
 
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
 
-executable gitit
-    main-is:    gitit.hs
+executable gitit2
+    main-is:    gitit2.hs
     hs-source-dirs: src
     build-depends: base                          >= 4          && < 5
                  , yesod                         >= 1.0        && < 1.1
                  , yesod-static                  >= 1.0        && < 1.1
                  , filestore                     >= 0.4        && < 0.5
-                 , gitit
+                 , gitit2
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
     if flag(executable)
        buildable:  True
