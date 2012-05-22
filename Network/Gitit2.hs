@@ -453,19 +453,29 @@ toWikiPage rendered = do
   toWidget rendered
 
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
-getEditR = edit Nothing
+getEditR = edit Nothing Nothing
 
 getRevertR :: HasGitit master => RevisionId -> Page -> GHandler Gitit master RepHtml
-getRevertR rev = edit (Just rev)
+getRevertR rev = edit Nothing (Just rev)
 
-edit :: HasGitit master => Maybe RevisionId -> Page -> GHandler Gitit master RepHtml
-edit mbrev page = do
+edit :: HasGitit master
+     => Maybe String       -- if merge, Just merged content with merge markers
+     -> Maybe RevisionId   -- if merge or reversion, Just id of commit
+     -> Page
+     -> GHandler Gitit master RepHtml
+edit mbtext mbrev page = do
   requireUser
-  (revid,cont) <- getRawContents page mbrev
-  let contents = Textarea . T.pack . toString $ cont
+  (revid, cont) <- case (mbrev, mbtext) of
+                         (Just x, Just y)  -> return (x, y)
+                         _                 ->
+                                do (r,c) <- getRawContents page mbrev
+                                   return (r, toString c)
+  let contents = Textarea $ T.pack $ cont
   mr <- getMessageRender
   let comment = maybe "" (mr . MsgReverted) mbrev
-  (form, enctype) <- generateFormPost $ editForm $ Just Edit{ editContents = contents, editComment = comment }
+  (form, enctype) <- generateFormPost $ editForm
+                     $ Just Edit{ editContents = contents
+                                , editComment = comment }
   toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
@@ -492,7 +502,8 @@ postUpdateR revid page = do
        FormSuccess r -> do
           liftIO $ modify fs (pathForPage page) ""
             (Author (gititUserName user) (gititUserEmail user))
-            (T.unpack $ editComment r) (filter (/='\r') . T.unpack $ unTextarea $ editContents r)
+            (T.unpack $ editComment r) (filter (/='\r') . T.unpack
+                      $ unTextarea $ editContents r)
           -- TODO handle mergeinfo
           return ()
        _             -> return ()
