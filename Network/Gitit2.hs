@@ -33,7 +33,7 @@ import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
-import Data.Maybe (mapMaybe, isJust)
+import Data.Maybe (mapMaybe, isJust, isNothing)
 import System.Random (randomRIO)
 import Control.Exception (throwIO, catch, try)
 
@@ -472,7 +472,10 @@ edit mbtext mbrev page = do
                                    return (r, toString c)
   let contents = Textarea $ T.pack $ cont
   mr <- getMessageRender
-  let comment = maybe "" (mr . MsgReverted) mbrev
+  let comment = case (mbtext, mbrev) of
+                     (Nothing, Just r) -> mr $ MsgReverted r
+                     _                 -> ""
+  when (isJust mbtext) $ setMessageI $ MsgMerged revid
   (form, enctype) <- generateFormPost $ editForm
                      $ Just Edit{ editContents = contents
                                 , editComment = comment }
@@ -480,7 +483,7 @@ edit mbtext mbrev page = do
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
                      , pgSelectedTab = EditTab } $ do
-    when (isJust mbrev) $ toWidget [julius|
+    when (isJust mbrev && isNothing mbtext) $ toWidget [julius|
        $(document).ready(function (){
           $('textarea').attr('readonly','readonly').attr('style','color: gray;');
           }); |]
@@ -498,17 +501,21 @@ postUpdateR revid page = do
   user <- requireUser
   ((res, _form), _enctype) <- runFormPost $ editForm Nothing
   fs <- filestore <$> getYesodSub
+  toMaster <- getRouteToMaster
   case res of
        FormSuccess r -> do
-          liftIO $ modify fs (pathForPage page) ""
-            (Author (gititUserName user) (gititUserEmail user))
-            (T.unpack $ editComment r) (filter (/='\r') . T.unpack
-                      $ unTextarea $ editContents r)
-          -- TODO handle mergeinfo
-          return ()
-       _             -> return ()
-  toMaster <- getRouteToMaster
-  redirect $ toMaster $ ViewR page
+          mres <- liftIO $ modify fs (pathForPage page) revid
+                (Author (gititUserName user) (gititUserEmail user))
+                (T.unpack $ editComment r) (filter (/='\r') . T.unpack
+                          $ unTextarea $ editContents r)
+          case mres of
+               Right () -> redirect $ toMaster $ ViewR page
+               Left mergeinfo ->
+                  edit (Just $ mergeText mergeinfo)
+                       (Just $ revId $ mergeRevision mergeinfo) page
+       FormFailure ts -> setMessage (toMarkup $ T.intercalate "; " ts) >>
+                         redirect (toMaster $ ViewR page)
+       FormMissing    -> error "Form missing"
 
 data Edit = Edit { editContents :: Textarea
                  , editComment  :: Text
