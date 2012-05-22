@@ -25,6 +25,7 @@ import System.FilePath
 import Text.Pandoc
 import Text.Pandoc.Shared (stringify)
 import Control.Applicative
+import Control.Monad (when)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
@@ -32,7 +33,7 @@ import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, isJust)
 import System.Random (randomRIO)
 import Control.Exception (throwIO, catch, try)
 
@@ -469,7 +470,7 @@ edit mbrev page = do
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
                      , pgSelectedTab = EditTab } $ do
-    toWidget [julius|
+    when (isJust mbrev) $ toWidget [julius|
        $(document).ready(function (){
           $('textarea').attr('readonly','readonly').attr('style','color: gray;');
           }); |]
