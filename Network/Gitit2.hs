@@ -15,6 +15,7 @@ module Network.Gitit2 ( GititConfig (..)
                       , makeDefaultPage
                       ) where
 
+import Prelude hiding (catch)
 import Yesod hiding (MsgDelete)
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
@@ -33,9 +34,9 @@ import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
-import Data.Maybe (mapMaybe, isJust, isNothing)
+import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
-import Control.Exception (throwIO, catch, try)
+import Control.Exception (throw, catch, handle, try)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -159,6 +160,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_revision/#RevisionId/*Page RevisionR GET
 /_revert/#RevisionId/*Page RevertR GET
 /_update/#RevisionId/*Page UpdateR POST
+/_create/*Page CreateR POST
 /_delete/*Page DeleteR GET POST
 /*Page     ViewR GET
 |]
@@ -262,7 +264,7 @@ sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
         sanitizeInline (Image alt (src,tit)) = Link alt (sanitizeURI src,tit)
         sanitizeInline x = x
         sanitizeURI src = case sanitizeAttribute ("href", T.pack src) of
-                               Just (w,z) -> T.unpack z
+                               Just (_,z) -> T.unpack z
                                Nothing    -> ""
         sanitizeAttrs = mapMaybe sanitizeAttr
         sanitizeAttr (x,y) = case sanitizeAttribute (T.pack x, T.pack y) of
@@ -316,7 +318,11 @@ getRandomR = do
   redirect $ toMaster $ ViewR $ pageForPath thepage
 
 getRawR :: HasGitit master => Page -> GHandler Gitit master RepPlain
-getRawR page = RepPlain . toContent . snd <$> getRawContents page Nothing
+getRawR page = do
+  mbcont <- getRawContents page Nothing
+  case mbcont of
+       Nothing       -> notFound
+       Just (_,cont) -> return $ RepPlain $ toContent cont
 
 getDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getDeleteR page = do
@@ -366,19 +372,24 @@ getRevisionR rev = view (Just rev)
 
 view :: HasGitit master => Maybe RevisionId -> Page -> GHandler Gitit master RepHtml
 view mbrev page = do
-  (_,contents) <- getRawContents page mbrev
-  htmlContents <- contentsToHtml contents
-  makePage pageLayout{ pgName = Just page
-                     , pgPageTools = True
-                     , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
-                     , pgSelectedTab = ViewTab } $
-           do setTitle $ toMarkup page
-              [whamlet|
-                <h1 .title>#{page}
-                $maybe rev <- mbrev
-                  <h2 .revision>#{rev}
-                ^{toWikiPage htmlContents}
-              |]
+  toMaster <- getRouteToMaster
+  mbcont <- getRawContents page mbrev
+  case mbcont of
+       Nothing    -> do setMessageI (MsgNewPage page)
+                        redirect (toMaster $ EditR page)
+       Just (_,contents) -> do
+           htmlContents <- contentsToHtml contents
+           makePage pageLayout{ pgName = Just page
+                              , pgPageTools = True
+                              , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
+                              , pgSelectedTab = ViewTab } $
+                    do setTitle $ toMarkup page
+                       [whamlet|
+                         <h1 .title>#{page}
+                         $maybe rev <- mbrev
+                           <h2 .revision>#{rev}
+                         ^{toWikiPage htmlContents}
+                       |]
 
 getIndexR :: HasGitit master => Dir -> GHandler Gitit master RepHtml
 getIndexR (Dir dir) = do
@@ -425,12 +436,13 @@ indexListing toMaster dir r = do
             <a href=@{toMaster $ IndexR $ Dir $ fullName f}>#{shortName f}</a>
           |]
 
-getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master (RevisionId, ByteString)
+getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master (Maybe (RevisionId, ByteString))
 getRawContents page rev = do
   fs <- filestore <$> getYesodSub
-  revid <- liftIO $ latest fs (pathForPage page)
-  cont <- liftIO $ retrieve fs (pathForPage page) rev
-  return (revid, cont)
+  liftIO $ handle (\e -> if e == FS.NotFound then return Nothing else throw e)
+         $ do revid <- latest fs (pathForPage page)
+              cont <- retrieve fs (pathForPage page) rev
+              return $ Just (revid, cont)
 
 contentsToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
 contentsToHtml contents = do
@@ -453,69 +465,100 @@ toWikiPage rendered = do
   toWidget rendered
 
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
-getEditR = edit Nothing Nothing
+getEditR page = do
+  requireUser
+  mbcont <- getRawContents page Nothing
+  let contents = case mbcont of
+                       Nothing    -> ""
+                       Just (_,c) -> toString c
+  let mbrev = maybe Nothing (Just . fst) mbcont
+  edit False contents mbrev page
 
-getRevertR :: HasGitit master => RevisionId -> Page -> GHandler Gitit master RepHtml
-getRevertR rev = edit Nothing (Just rev)
+getRevertR :: HasGitit master
+           => RevisionId -> Page -> GHandler Gitit master RepHtml
+getRevertR rev page = do
+  requireUser
+  mbcont <- getRawContents page (Just rev)
+  case mbcont of
+       Nothing           -> notFound
+       Just (r,contents) -> edit True (toString contents) (Just r) page
 
 edit :: HasGitit master
-     => Maybe String       -- if merge, Just merged content with merge markers
-     -> Maybe RevisionId   -- if merge or reversion, Just id of commit
+     => Bool               -- revert?
+     -> String             -- contents to put in text box
+     -> Maybe RevisionId   -- unless new page, Just id of old version
      -> Page
      -> GHandler Gitit master RepHtml
-edit mbtext mbrev page = do
+edit revert text mbrevid page = do
   requireUser
-  (revid, cont) <- case (mbrev, mbtext) of
-                         (Just x, Just y)  -> return (x, y)
-                         _                 ->
-                                do (r,c) <- getRawContents page mbrev
-                                   return (r, toString c)
-  let contents = Textarea $ T.pack $ cont
+  let contents = Textarea $ T.pack $ text
   mr <- getMessageRender
-  let comment = case (mbtext, mbrev) of
-                     (Nothing, Just r) -> mr $ MsgReverted r
-                     _                 -> ""
-  when (isJust mbtext) $ setMessageI $ MsgMerged revid
+  let comment = if revert
+                   then mr $ MsgReverted $ maybe "" id mbrevid
+                   else ""
   (form, enctype) <- generateFormPost $ editForm
                      $ Just Edit{ editContents = contents
                                 , editComment = comment }
   toMaster <- getRouteToMaster
-  makePage pageLayout{ pgName = Just page
-                     , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
-                     , pgSelectedTab = EditTab } $ do
-    when (isJust mbrev && isNothing mbtext) $ toWidget [julius|
+  let route = toMaster $ case mbrevid of
+                    Just revid -> UpdateR revid page
+                    Nothing    -> CreateR page
+  showEditForm page route enctype $ do
+    when revert $ toWidget [julius|
        $(document).ready(function (){
           $('textarea').attr('readonly','readonly').attr('style','color: gray;');
           }); |]
+    form
+
+-- TODO type sig
+showEditForm page route enctype form = do
+  makePage pageLayout{ pgName = Just page
+                     , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
+                     , pgSelectedTab = EditTab } $ do
     [whamlet|
       <h1>#{page}</h1>
       <div #editform>
-        <form method=post action=@{toMaster $ UpdateR revid page} enctype=#{enctype}>
+        <form method=post action=@{route} enctype=#{enctype}>
           ^{form}
           <input type=submit>
     |]
 
 postUpdateR :: HasGitit master
           => RevisionId -> Page -> GHandler Gitit master RepHtml
-postUpdateR revid page = do
+postUpdateR revid page = update' (Just revid) page
+
+postCreateR :: HasGitit master
+            => Page -> GHandler Gitit master RepHtml
+postCreateR page = update' Nothing page
+
+update' :: HasGitit master
+       => Maybe RevisionId -> Page -> GHandler Gitit master RepHtml
+update' mbrevid page = do
   user <- requireUser
-  ((res, _form), _enctype) <- runFormPost $ editForm Nothing
+  ((result, widget), enctype) <- runFormPost $ editForm Nothing
   fs <- filestore <$> getYesodSub
   toMaster <- getRouteToMaster
-  case res of
+  let route = toMaster $ case mbrevid of
+                  Just revid  -> UpdateR revid page
+                  Nothing     -> CreateR page
+  case result of
        FormSuccess r -> do
-          mres <- liftIO $ modify fs (pathForPage page) revid
-                (Author (gititUserName user) (gititUserEmail user))
-                (T.unpack $ editComment r) (filter (/='\r') . T.unpack
-                          $ unTextarea $ editContents r)
-          case mres of
-               Right () -> redirect $ toMaster $ ViewR page
-               Left mergeinfo ->
-                  edit (Just $ mergeText mergeinfo)
-                       (Just $ revId $ mergeRevision mergeinfo) page
-       FormFailure ts -> setMessage (toMarkup $ T.intercalate "; " ts) >>
-                         redirect (toMaster $ ViewR page)
-       FormMissing    -> error "Form missing"
+         let auth = Author (gititUserName user) (gititUserEmail user)
+         let comm = T.unpack $ editComment r
+         let cont = filter (/='\r') $ T.unpack $ unTextarea $ editContents r
+         case mbrevid of
+           Just revid -> do
+              mres <- liftIO $ modify fs (pathForPage page) revid auth comm cont
+              case mres of
+                   Right () -> redirect $ toMaster $ ViewR page
+                   Left mergeinfo -> do
+                      setMessageI $ MsgMerged revid
+                      edit False (mergeText mergeinfo)
+                           (Just $ revId $ mergeRevision mergeinfo) page
+           Nothing -> do
+             liftIO $ save fs (pathForPage page) auth comm cont
+             redirect $ toMaster $ ViewR page
+       _ -> showEditForm page route enctype widget
 
 data Edit = Edit { editContents :: Textarea
                  , editComment  :: Text
