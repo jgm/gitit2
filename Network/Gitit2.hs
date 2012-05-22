@@ -20,13 +20,13 @@ import Yesod hiding (MsgDelete)
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
 import Language.Haskell.TH hiding (dyn)
-import Data.List (isInfixOf, inits)
+import Data.List (inits)
 import Data.FileStore as FS
 import System.FilePath
 import Text.Pandoc
 import Text.Pandoc.Shared (stringify)
 import Control.Applicative
-import Control.Monad (when)
+import Control.Monad (when, filterM)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
@@ -36,7 +36,7 @@ import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
 import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
-import Control.Exception (throw, catch, handle, try)
+import Control.Exception (throw, handle, try)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -61,11 +61,17 @@ data GititConfig = GititConfig{
 -- | Path to a wiki page.  Pages can't begin with '_'.
 data Page = Page Text deriving (Show, Read, Eq)
 
+-- for now, we disallow @*@ and @?@ in page names, because git filestore
+-- does not deal with them properly, and darcs filestore disallows them.
 instance PathMultiPiece Page where
   toPathMultiPiece (Page x) = T.splitOn "/" x
-  fromPathMultiPiece (x:xs) = if "_" `T.isPrefixOf` x
-                              then Nothing
-                              else Just (Page $ T.intercalate "/" $ x:xs)
+  fromPathMultiPiece (x:xs) = if "_" `T.isPrefixOf` x ||
+                                 "*" `T.isInfixOf` x ||
+                                 "?" `T.isInfixOf` x ||
+                                 ".." `T.isInfixOf` x ||
+                                 "/_" `T.isInfixOf` x
+                                 then Nothing
+                                 else Just (Page $ T.intercalate "/" $ x:xs)
   fromPathMultiPiece []     = Nothing
 
 instance ToMarkup Page where
@@ -271,33 +277,27 @@ sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
                                   Just (w,z) -> Just (T.unpack w, T.unpack z)
                                   Nothing    -> Nothing
 
-pathForPage :: Page -> FilePath
-pathForPage (Page page) = T.unpack page <.> "page"
+pathForPage :: Page -> GHandler Gitit master FilePath
+pathForPage (Page page) = return $ T.unpack page <.> "page"
 
-pathForFile :: Page -> FilePath
-pathForFile (Page page) = T.unpack page
+pathForFile :: Page -> GHandler Gitit master FilePath
+pathForFile (Page page) = return $ T.unpack page
 
-pageForPath :: FilePath -> Page
-pageForPath fp = Page . T.pack $
-  if isPageFile fp then dropExtension fp else fp
+pageForPath :: FilePath -> GHandler Gitit master Page
+pageForPath fp = return $ Page $ T.pack $
+  if takeExtension fp == ".page"
+     then dropExtension fp
+     else fp
 
-isPage :: String -> Bool
-isPage "" = False
-isPage ('_':_) = False
-isPage s = all (`notElem` "*?") s && not (".." `isInfixOf` s) && not ("/_" `isInfixOf` s)
--- for now, we disallow @*@ and @?@ in page names, because git filestore
--- does not deal with them properly, and darcs filestore disallows them.
+isDiscussPage :: Page -> Bool
+isDiscussPage (Page x) = "@" `T.isPrefixOf` x
 
-isPageFile :: FilePath -> Bool
-isPageFile f = takeExtension f == ".page"
+isPageFile :: FilePath -> GHandler Gitit master Bool
+isPageFile f = return $ takeExtension f == ".page"
 
-isDiscussPage :: String -> Bool
-isDiscussPage ('@':xs) = isPage xs
-isDiscussPage _ = False
-
-isDiscussPageFile :: FilePath -> Bool
+isDiscussPageFile :: FilePath -> GHandler Gitit master Bool
 isDiscussPageFile ('@':xs) = isPageFile xs
-isDiscussPageFile _ = False
+isDiscussPageFile _ = return False
 
 -- TODO : make the front page configurable
 getHomeR :: HasGitit master => GHandler Gitit master RepHtml
@@ -311,11 +311,12 @@ getRandomR :: HasGitit master => GHandler Gitit master RepHtml
 getRandomR = do
   fs <- filestore <$> getYesodSub
   files <- liftIO $ index fs
-  let pages = [x | x <- files, isPageFile x && not (isDiscussPageFile x)]
+  pages <- mapM pageForPath =<< filterM (fmap not . isDiscussPageFile)
+                            =<<filterM isPageFile files
   pagenum <- liftIO $ randomRIO (0, length pages - 1)
   let thepage = pages !! pagenum
   toMaster <- getRouteToMaster
-  redirect $ toMaster $ ViewR $ pageForPath thepage
+  redirect $ toMaster $ ViewR thepage
 
 getRawR :: HasGitit master => Page -> GHandler Gitit master RepPlain
 getRawR page = do
@@ -328,13 +329,15 @@ getDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getDeleteR page = do
   requireUser
   fs <- filestore <$> getYesodSub
-  pageTest <- liftIO $ try $ latest fs (pathForPage page)
+  path <- pathForPage page
+  pageTest <- liftIO $ try $ latest fs path
   fileToDelete <- case pageTest of
-                       Right _        -> return $ pathForPage page  -- a page
+                       Right _        -> return path
                        Left  FS.NotFound -> do
-                         fileTest <- liftIO $ try $ latest fs $ pathForFile page
+                         path' <- pathForFile page
+                         fileTest <- liftIO $ try $ latest fs path'
                          case fileTest of
-                              Right _     -> return $ pathForFile page -- a file
+                              Right _     -> return path' -- a file
                               Left FS.NotFound  -> fail (show FS.NotFound)
                               Left e      -> fail (show e)
                        Left e        -> fail (show e)
@@ -396,18 +399,32 @@ getIndexR (Dir dir) = do
   fs <- filestore <$> getYesodSub
   listing <- liftIO $ directory fs $ T.unpack dir
   let isDiscussionPage (FSFile f) = isDiscussPageFile f
-      isDiscussionPage (FSDirectory _) = False
-  let prunedListing = filter (not . isDiscussionPage) listing
+      isDiscussionPage (FSDirectory _) = return False
+  prunedListing <- filterM (fmap not . isDiscussionPage) listing
   let updirs = inits $ filter (not . T.null) $ toPathMultiPiece (Dir dir)
   toMaster <- getRouteToMaster
+  let pref = if T.null dir
+                then id
+                else \x -> dir <> "/" <> x
+  let process (FSFile f) = do
+        Page page <- pageForPath f
+        ispage <- isPageFile f
+        let route = toMaster $ ViewR $ Page $ pref page
+        return (if ispage then ("page" :: Text) else "upload", route, page)
+      process (FSDirectory f) = do
+        Page page <- pageForPath f
+        let route = toMaster $ IndexR $ Dir $ pref page
+        return ("folder", route, page)
+  entries <- mapM process prunedListing
   makePage pageLayout{ pgName = Nothing } $ [whamlet|
     <h1 .title>
       $forall up <- updirs
         ^{upDir toMaster up}
     <div .index>
       <ul>
-        $forall ent <- prunedListing
-          ^{indexListing toMaster dir ent}
+        $forall (cls,route,name) <- entries
+          <li .#{cls}>
+            <a href=@{route}>#{name}</a>
   |]
 
 upDir :: (Route Gitit -> Route master) -> [Text] -> GWidget Gitit master ()
@@ -417,31 +434,13 @@ upDir toMaster fs = do
                      []     -> "\x2302"
   [whamlet|<a href=@{toMaster $ IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}>#{lastdir}/</a>|]
 
-indexListing :: (Route Gitit -> Route master) -> Text -> Resource -> GWidget Gitit master ()
-indexListing toMaster dir r = do
-  let pref = if T.null dir
-                then ""
-                else dir <> "/"
-  let shortName f = f' where Page f' = pageForPath f
-  let fullName f = pref <> shortName f
-  let cls :: FilePath -> Text
-      cls f = if isPageFile f then "page" else "upload"
-  case r of
-    (FSFile f) -> [whamlet|
-          <li .#{cls f}>
-            <a href=@{toMaster $ ViewR $ Page $ fullName f}>#{shortName f}</a>
-          |]
-    (FSDirectory f) -> [whamlet|
-          <li .folder>
-            <a href=@{toMaster $ IndexR $ Dir $ fullName f}>#{shortName f}</a>
-          |]
-
 getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master (Maybe (RevisionId, ByteString))
 getRawContents page rev = do
   fs <- filestore <$> getYesodSub
+  path <- pathForPage page
   liftIO $ handle (\e -> if e == FS.NotFound then return Nothing else throw e)
-         $ do revid <- latest fs (pathForPage page)
-              cont <- retrieve fs (pathForPage page) rev
+         $ do revid <- latest fs path
+              cont <- retrieve fs path rev
               return $ Just (revid, cont)
 
 contentsToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
@@ -510,7 +509,12 @@ edit revert text mbrevid page = do
           }); |]
     form
 
--- TODO type sig
+showEditForm :: HasGitit master
+             => Page
+             -> Route master
+             -> Enctype
+             -> GWidget Gitit master ()
+             -> GHandler Gitit master RepHtml
 showEditForm page route enctype form = do
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
@@ -546,9 +550,10 @@ update' mbrevid page = do
          let auth = Author (gititUserName user) (gititUserEmail user)
          let comm = T.unpack $ editComment r
          let cont = filter (/='\r') $ T.unpack $ unTextarea $ editContents r
+         path <- pathForPage page
          case mbrevid of
            Just revid -> do
-              mres <- liftIO $ modify fs (pathForPage page) revid auth comm cont
+              mres <- liftIO $ modify fs path revid auth comm cont
               case mres of
                    Right () -> redirect $ toMaster $ ViewR page
                    Left mergeinfo -> do
@@ -556,7 +561,7 @@ update' mbrevid page = do
                       edit False (mergeText mergeinfo)
                            (Just $ revId $ mergeRevision mergeinfo) page
            Nothing -> do
-             liftIO $ save fs (pathForPage page) auth comm cont
+             liftIO $ save fs path auth comm cont
              redirect $ toMaster $ ViewR page
        _ -> showEditForm page route enctype widget
 
