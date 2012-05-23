@@ -320,7 +320,8 @@ getRandomR = do
 
 getRawR :: HasGitit master => Page -> GHandler Gitit master RepPlain
 getRawR page = do
-  mbcont <- getRawContents page Nothing
+  path <- pathForPage page
+  mbcont <- getRawContents path Nothing
   case mbcont of
        Nothing       -> notFound
        Just (_,cont) -> return $ RepPlain $ toContent cont
@@ -376,7 +377,8 @@ getRevisionR rev = view (Just rev)
 view :: HasGitit master => Maybe RevisionId -> Page -> GHandler Gitit master RepHtml
 view mbrev page = do
   toMaster <- getRouteToMaster
-  mbcont <- getRawContents page mbrev
+  path <- pathForPage page
+  mbcont <- getRawContents path mbrev
   case mbcont of
        Nothing    -> do setMessageI (MsgNewPage page)
                         redirect (toMaster $ EditR page)
@@ -434,10 +436,9 @@ upDir toMaster fs = do
                      []     -> "\x2302"
   [whamlet|<a href=@{toMaster $ IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}>#{lastdir}/</a>|]
 
-getRawContents :: HasGitit master => Page -> Maybe RevisionId -> GHandler Gitit master (Maybe (RevisionId, ByteString))
-getRawContents page rev = do
+getRawContents :: HasGitit master => FilePath -> Maybe RevisionId -> GHandler Gitit master (Maybe (RevisionId, ByteString))
+getRawContents path rev = do
   fs <- filestore <$> getYesodSub
-  path <- pathForPage page
   liftIO $ handle (\e -> if e == FS.NotFound then return Nothing else throw e)
          $ do revid <- latest fs path
               cont <- retrieve fs path rev
@@ -466,7 +467,8 @@ toWikiPage rendered = do
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getEditR page = do
   requireUser
-  mbcont <- getRawContents page Nothing
+  path <- pathForPage page
+  mbcont <- getRawContents path Nothing
   let contents = case mbcont of
                        Nothing    -> ""
                        Just (_,c) -> toString c
@@ -477,7 +479,8 @@ getRevertR :: HasGitit master
            => RevisionId -> Page -> GHandler Gitit master RepHtml
 getRevertR rev page = do
   requireUser
-  mbcont <- getRawContents page (Just rev)
+  path <- pathForPage page
+  mbcont <- getRawContents path (Just rev)
   case mbcont of
        Nothing           -> notFound
        Just (r,contents) -> edit True (toString contents) (Just r) page
