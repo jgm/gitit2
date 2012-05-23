@@ -16,6 +16,7 @@ module Network.Gitit2 ( GititConfig (..)
                       ) where
 
 import Prelude hiding (catch)
+import qualified Data.Map as M
 import Yesod hiding (MsgDelete)
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
@@ -37,6 +38,7 @@ import Data.Monoid (Monoid, mappend)
 import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
 import Control.Exception (throw, handle, try)
+import Text.Highlighting.Kate
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -56,6 +58,7 @@ instance Yesod Gitit
 -- | Configuration for a gitit wiki.
 data GititConfig = GititConfig{
        wiki_path  :: FilePath    -- ^ Path to the repository.
+     , mime_types :: M.Map String ContentType -- ^ Table of mime types
      }
 
 -- | Path to a wiki page.  Pages can't begin with '_'.
@@ -299,6 +302,12 @@ isDiscussPageFile :: FilePath -> GHandler Gitit master Bool
 isDiscussPageFile ('@':xs) = isPageFile xs
 isDiscussPageFile _ = return False
 
+isSourceFile :: FilePath -> GHandler Gitit master Bool
+isSourceFile path' = do
+  let langs = languagesByFilename $ takeFileName path'
+  return $ not (null langs || takeExtension path' == ".svg")
+                         -- allow svg to be served as image
+
 -- TODO : make the front page configurable
 getHomeR :: HasGitit master => GHandler Gitit master RepHtml
 getHomeR = getViewR (Page "Front Page")
@@ -323,7 +332,12 @@ getRawR page = do
   path <- pathForPage page
   mbcont <- getRawContents path Nothing
   case mbcont of
-       Nothing       -> notFound
+       Nothing       -> do
+         path' <- pathForFile page
+         mbcont' <- getRawContents path' Nothing
+         case mbcont' of
+              Nothing  -> notFound
+              Just (_,cont) -> return $ RepPlain $ toContent cont
        Just (_,cont) -> return $ RepPlain $ toContent cont
 
 getDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
@@ -380,20 +394,37 @@ view mbrev page = do
   path <- pathForPage page
   mbcont <- getRawContents path mbrev
   case mbcont of
-       Nothing    -> do setMessageI (MsgNewPage page)
-                        redirect (toMaster $ EditR page)
        Just (_,contents) -> do
-           htmlContents <- contentsToHtml contents
+         htmlContents <- pageToHtml contents
+         layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
+       Nothing -> do
+         path' <- pathForFile page
+         mbcont' <- getRawContents path' mbrev
+         is_source <- isSourceFile path'
+         case mbcont' of
+              Nothing -> do
+                 setMessageI (MsgNewPage page)
+                 redirect (toMaster $ EditR page)
+              Just (_,contents)
+               | is_source -> do
+                   htmlContents <- sourceToHtml path' contents
+                   layout [ViewTab,HistoryTab] htmlContents
+               | otherwise -> do
+                  mimeTypes <- mime_types <$> config <$> getYesodSub
+                  let ct = maybe "application/octet-stream" id
+                           $ M.lookup (drop 1 $ takeExtension path') mimeTypes
+                  sendResponse (ct, toContent contents)
+   where layout tabs cont =
            makePage pageLayout{ pgName = Just page
                               , pgPageTools = True
-                              , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
+                              , pgTabs = tabs
                               , pgSelectedTab = ViewTab } $
                     do setTitle $ toMarkup page
                        [whamlet|
                          <h1 .title>#{page}
                          $maybe rev <- mbrev
                            <h2 .revision>#{rev}
-                         ^{toWikiPage htmlContents}
+                         ^{toWikiPage cont}
                        |]
 
 getIndexR :: HasGitit master => Dir -> GHandler Gitit master RepHtml
@@ -436,7 +467,10 @@ upDir toMaster fs = do
                      []     -> "\x2302"
   [whamlet|<a href=@{toMaster $ IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}>#{lastdir}/</a>|]
 
-getRawContents :: HasGitit master => FilePath -> Maybe RevisionId -> GHandler Gitit master (Maybe (RevisionId, ByteString))
+getRawContents :: HasGitit master
+               => FilePath
+               -> Maybe RevisionId
+               -> GHandler Gitit master (Maybe (RevisionId, ByteString))
 getRawContents path rev = do
   fs <- filestore <$> getYesodSub
   liftIO $ handle (\e -> if e == FS.NotFound then return Nothing else throw e)
@@ -444,8 +478,8 @@ getRawContents path rev = do
               cont <- retrieve fs path rev
               return $ Just (revid, cont)
 
-contentsToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
-contentsToHtml contents = do
+pageToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
+pageToHtml contents = do
   let doc = readMarkdown defaultParserState{ stateSmart = True } $ toString contents
   doc' <- sanitizePandoc <$> addWikiLinks doc
   let rendered = writeHtml defaultWriterOptions{
@@ -454,6 +488,15 @@ contentsToHtml contents = do
                    , writerHighlight = True
                    , writerHTMLMathMethod = MathJax $ T.unpack mathjax_url } doc'
   return rendered
+
+sourceToHtml :: HasGitit master
+             => FilePath -> ByteString -> GHandler Gitit master Html
+sourceToHtml path contents = do
+  let formatOpts = defaultFormatOpts { numberLines = True, lineAnchors = True }
+  return $ formatHtmlBlock formatOpts $
+     case languagesByExtension $ takeExtension path of
+        []    -> highlightAs "" $ toString contents
+        (l:_) -> highlightAs l $ toString contents
 
 -- TODO replace with something in configuration.
 mathjax_url :: Text

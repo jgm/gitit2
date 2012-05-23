@@ -61,7 +61,9 @@ library
                  , blaze-html                    >= 0.5        && < 0.6
                  , blaze-markup                  >= 0.5        && < 0.6
                  , random                        >= 1.0        && < 1.1
+                 , containers                    >= 0.4        && < 0.5
                  , pandoc                        >= 1.9.3      && < 1.10
+                 , highlighting-kate             >= 0.5.0.6    && < 0.6
                  , xss-sanitize                  >= 0.3.2      && < 0.4
 
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
@@ -73,6 +75,7 @@ executable gitit2
                  , yesod                         >= 1.0        && < 1.1
                  , yesod-static                  >= 1.0        && < 1.1
                  , filestore                     >= 0.4        && < 0.5
+                 , containers                    >= 0.4        && < 0.5
                  , gitit2
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
     if flag(executable)
