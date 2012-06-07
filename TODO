@@ -6,8 +6,15 @@ _ export
 _ history
 _ diffs
 _ discuss
+_ file upload
+_ atom feed (site)
+_ atom feed (page)
 _ config file
 _ categories
+_ site initialization
+_ caching
+_ cache expiration program?
+_ plugins/interface
 _ user logins/accounts
 _ daemonization?
 _ socket?
