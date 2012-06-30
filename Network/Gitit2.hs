@@ -22,8 +22,10 @@ import Yesod.Static
 -- will look in config/robots.txt and config/favicon.ico
 import Yesod.Default.Handlers (getRobotsR, getFaviconR)
 import Language.Haskell.TH hiding (dyn)
-import Data.List (inits, find)
+import Data.Ord (comparing)
+import Data.List (inits, find, sortBy)
 import Data.FileStore as FS
+import Data.Char (toLower)
 import System.FilePath
 import Text.Pandoc
 import Text.Pandoc.Shared (stringify)
@@ -303,6 +305,11 @@ isDiscussPage (Page x) = "@" `T.isPrefixOf` x
 isPageFile :: FilePath -> GHandler Gitit master Bool
 isPageFile f = return $ takeExtension f == ".page"
 
+allPageFiles :: GHandler Gitit master [FilePath]
+allPageFiles = do
+  fs <- filestore <$> getYesodSub
+  liftIO (index fs) >>= filterM isPageFile
+
 isDiscussPageFile :: FilePath -> GHandler Gitit master Bool
 isDiscussPageFile ('@':xs) = isPageFile xs
 isDiscussPageFile _ = return False
@@ -521,8 +528,7 @@ postGoR :: HasGitit master => GHandler Gitit master RepHtml
 postGoR = do
   gotopage <- runInputPost $ ireq textField "gotopage"
   let gotopage' = T.toLower gotopage
-  fs <- filestore <$> getYesodSub
-  allPages <- liftIO (index fs) >>= filterM isPageFile
+  allPages <- allPageFiles
   let allPageNames = map (T.pack . dropExtension) allPages
   let findPage f   = find f allPageNames
   let exactMatch f = gotopage == f
@@ -536,12 +542,51 @@ postGoR = do
 
 searchResults :: HasGitit master => [Text] -> GHandler Gitit master RepHtml
 searchResults patterns = do
+  fs <- filestore <$> getYesodSub
+  matchLines <- if null patterns
+                   then return []
+                   else liftIO $ search fs SearchQuery{
+                                             queryPatterns =
+                                                map T.unpack patterns
+                                           , queryWholeWords = True
+                                           , queryMatchAll = True
+                                           , queryIgnoreCase = True
+                                           }
+  let contentMatches = map matchResourceName matchLines
+  allPages <- allPageFiles
+  let slashToSpace = map (\c -> if c == '/' then ' ' else c)
+  let inPageName pageName' x = x `elem`
+          (words $ slashToSpace $ dropExtension pageName')
+  let matchesPatterns pageName' = not (null patterns) &&
+       all (inPageName (map toLower pageName'))
+           (map (T.unpack . T.toLower) patterns)
+  let pageNameMatches = filter matchesPatterns allPages
+  let allMatchedFiles = [f | f <- allPages, f `elem` contentMatches
+                                     || f `elem` pageNameMatches ]
+  let matchesInFile f =  mapMaybe (\x -> if matchResourceName x == f
+                                            then Just (matchLine x)
+                                            else Nothing) matchLines
+  let matches = map (\f -> (f, matchesInFile f)) allMatchedFiles
+  let relevance (f, ms) = length ms + if f `elem` pageNameMatches
+                                         then 100
+                                         else 0
+  let matches' = reverse $ sortBy (comparing relevance) matches
+  let matches'' = map (\(f,c) -> (Page $ T.pack $ dropExtension f, c)) matches'
+  toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
-    -- TODO fill in
+    -- TODO add search.js
     [whamlet|
-      <h1>#{T.intercalate ":" patterns}</h1>
+      <h1>#{T.unwords patterns}
+      <ol>
+        $forall (page, cont) <- matches''
+          <li>
+            <p>
+              <a href=@{toMaster $ ViewR page}>#{page}
+              $if not (null cont)
+                 <a href="#" .showmatch>[...]
+            <pre .matches style="display:none">#{unlines cont}
     |]
 
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
