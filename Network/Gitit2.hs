@@ -171,6 +171,8 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_update/#RevisionId/*Page UpdateR POST
 /_create/*Page CreateR POST
 /_delete/*Page DeleteR GET POST
+/_search SearchR POST
+/_go GoR POST
 /*Page     ViewR GET
 |]
 
@@ -179,6 +181,8 @@ makeDefaultPage layout content = do
   toMaster <- getRouteToMaster
   let logoRoute = toMaster $ StaticR $ StaticRoute ["img","logo.png"] []
   let feedRoute = toMaster $ StaticR $ StaticRoute ["img","icons","feed.png"] []
+  let searchRoute = toMaster SearchR
+  let goRoute = toMaster GoR
   let tabClass :: Tab -> Text
       tabClass t = if t == pgSelectedTab layout then "selected" else ""
   let showTab t = t `elem` pgTabs layout
@@ -227,10 +231,10 @@ makeDefaultPage layout content = do
                 <li><a href="">_{MsgUploadFile}</a></li>
                 <li><a href="" type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                 <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
-              <form action="" method="post" id="searchform">
+              <form method="post" action=@{searchRoute} id="searchform">
                <input type="text" name="patterns" id="patterns">
                <input type="submit" name="search" id="search" value="_{MsgSearch}">
-              <form action="" method="post" id="goform">
+              <form method="post" action=@{goRoute} id="goform">
                 <input type="text" name="gotopage" id="gotopage">
                 <input type="submit" name="go" id="go" value="_{MsgGo}">
         $if pgPageTools layout
@@ -507,6 +511,26 @@ toWikiPage rendered = do
   addScriptRemote mathjax_url
   toWidget rendered
 
+postSearchR :: HasGitit master => GHandler Gitit master RepHtml
+postSearchR = do
+  searchText <- runInputPost $ ireq textField "patterns"
+  makePage pageLayout{ pgName = Nothing
+                     , pgTabs = []
+                     , pgSelectedTab = EditTab } $ do
+    [whamlet|
+      <h1>#{searchText}</h1>
+    |]
+
+postGoR :: HasGitit master => GHandler Gitit master RepHtml
+postGoR = do
+  gotoPage <- runInputPost $ ireq textField "gotopage"
+  makePage pageLayout{ pgName = Nothing
+                     , pgTabs = []
+                     , pgSelectedTab = EditTab } $ do
+    [whamlet|
+      <h1>#{gotoPage}</h1>
+    |]
+
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getEditR page = do
   requireUser
@@ -628,4 +652,3 @@ editForm mbedit = renderDivs $ Edit
         validateNonempty y
           | T.null y = Left MsgValueRequired
           | otherwise = Right y
-
