@@ -21,13 +21,13 @@ import Yesod hiding (MsgDelete)
 import Yesod.Static
 import Yesod.Default.Handlers -- robots, favicon
 import Language.Haskell.TH hiding (dyn)
-import Data.List (inits)
+import Data.List (inits, find)
 import Data.FileStore as FS
 import System.FilePath
 import Text.Pandoc
 import Text.Pandoc.Shared (stringify)
 import Control.Applicative
-import Control.Monad (when, filterM)
+import Control.Monad (when, filterM, mplus)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
@@ -513,22 +513,34 @@ toWikiPage rendered = do
 
 postSearchR :: HasGitit master => GHandler Gitit master RepHtml
 postSearchR = do
-  searchText <- runInputPost $ ireq textField "patterns"
-  makePage pageLayout{ pgName = Nothing
-                     , pgTabs = []
-                     , pgSelectedTab = EditTab } $ do
-    [whamlet|
-      <h1>#{searchText}</h1>
-    |]
+  patterns <- runInputPost $ ireq textField "patterns"
+  searchResults $ T.words patterns
 
 postGoR :: HasGitit master => GHandler Gitit master RepHtml
 postGoR = do
-  gotoPage <- runInputPost $ ireq textField "gotopage"
+  gotopage <- runInputPost $ ireq textField "gotopage"
+  let gotopage' = T.toLower gotopage
+  fs <- filestore <$> getYesodSub
+  allPages <- liftIO (index fs) >>= filterM isPageFile
+  let allPageNames = map (T.pack . dropExtension) allPages
+  let findPage f   = find f allPageNames
+  let exactMatch f = gotopage == f
+  let insensitiveMatch f = gotopage' == T.toLower f
+  let prefixMatch f = gotopage' `T.isPrefixOf` T.toLower f
+  toMaster <- getRouteToMaster
+  case (findPage exactMatch `mplus` findPage insensitiveMatch `mplus`
+        findPage prefixMatch) of
+       Just m  -> redirect $ toMaster $ ViewR $ Page m
+       Nothing -> searchResults $ T.words gotopage
+
+searchResults :: HasGitit master => [Text] -> GHandler Gitit master RepHtml
+searchResults patterns = do
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
+    -- TODO fill in
     [whamlet|
-      <h1>#{gotoPage}</h1>
+      <h1>#{T.intercalate ":" patterns}</h1>
     |]
 
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
