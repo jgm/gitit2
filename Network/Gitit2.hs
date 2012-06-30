@@ -19,7 +19,8 @@ import Prelude hiding (catch)
 import qualified Data.Map as M
 import Yesod hiding (MsgDelete)
 import Yesod.Static
-import Yesod.Default.Handlers -- robots, favicon
+-- will look in config/robots.txt and config/favicon.ico
+import Yesod.Default.Handlers (getRobotsR, getFaviconR)
 import Language.Haskell.TH hiding (dyn)
 import Data.List (inits, find)
 import Data.FileStore as FS
