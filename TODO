@@ -19,8 +19,3 @@ _ user logins/accounts
 _ daemonization?
 _ socket?
 
-TODO:
-
-_ do we really need both Page and Dir?
-_ make Page take a [Text] and revise accordingly
-  forbid special chars in all components of path
