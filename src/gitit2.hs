@@ -1,6 +1,8 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, MultiParamTypeClasses, TypeFamilies,
     OverloadedStrings #-}
 import Network.Gitit2
+import Network.Socket hiding (Debug)
+import Network.URI
 import Yesod
 import Yesod.Static
 import Network.Wai.Handler.Warp
@@ -69,6 +71,7 @@ mimeTypes = M.fromList
         ,("hs","text/plain")]
 
 data Conf = Conf { port            :: Int
+                 , listen_address  :: String
                  , wiki_path       :: FilePath
                  , static_dir      :: FilePath
                  , mime_types_file :: Maybe FilePath
@@ -88,13 +91,20 @@ readMimeTypesFile f = catch
              hPutStrLn stderr "Could not parse mime types file."
              return mimeTypes
 
+checkListen :: String -> String
+checkListen l | isIPv6address l = l
+              | isIPv4address l = l
+              | otherwise       = error "Gitit.checkListen: Not a valid interface name"
+
 parseConfig :: Object -> Parser Conf
 parseConfig o = do
   port' <- o .:? "port" .!= 3000
   static_dir' <- o .:? "static_dir" .!= "static"
   wiki_path' <- o .:? "wiki_path" .!= "wikidata"
   mime_types_file' <- o .:? "mime_types_file"
+  listen_address' <- o .:? "listen_address" .!= "0.0.0.0"
   return Conf{ port = port'
+             , listen_address = checkListen listen_address'
              , wiki_path = wiki_path'
              , static_dir = static_dir'
              , mime_types_file = mime_types_file'
@@ -115,8 +125,16 @@ main = do
                 Nothing -> return mimeTypes
                 Just f  -> readMimeTypesFile f
   let settings = defaultSettings{ settingsPort = port conf }
+
+  -- open tthe requested interface
+  sock <- socket AF_INET Stream defaultProtocol
+  setSocketOption sock ReuseAddr 1
+  device <- inet_addr $ listen_address conf
+  bindSocket sock $ SockAddrInet (toEnum (port conf)) device
+  listen sock 10
+
   -- in future, could add option to use runSettingsSocket...
-  let runner = runSettings settings
+  let runner = runSettingsSocket settings sock
   runner =<< toWaiApp
       (Master (Gitit{ config    = GititConfig{
                                      mime_types = mimes
