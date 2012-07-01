@@ -1,11 +1,8 @@
 Features to implement:
 
-x search
-x go
 _ export
 _ history
 _ diffs
-x discuss
 _ file upload
 _ atom feed (site)
 _ atom feed (page)
@@ -16,6 +13,3 @@ _ caching
 _ cache expiration program?
 _ plugins/interface
 _ user logins/accounts
-_ daemonization?
-_ socket?
-
