@@ -4,7 +4,11 @@ import Network.Gitit2
 import Yesod
 import Yesod.Static
 import Data.FileStore
+import Data.Yaml
+import qualified Data.ByteString as B
 import qualified Data.Map as M
+import System.IO
+import System.Exit
 
 data Master = Master { getGitit :: Gitit }
 mkYesod "Master" [parseRoutes|
@@ -63,13 +67,24 @@ mimeTypes = M.fromList
         ,("wav","application/x-wav")
         ,("hs","text/plain")]
 
+parseConfig :: FromJSON a => Object -> Parser a
+parseConfig o = do
+  o .: "port"
+
 main :: IO ()
 main = do
+  res <- decodeEither `fmap` B.readFile "config/settings.yaml"
+  port <- case res of
+             Left e  -> do
+               hPutStrLn stderr ("Error reading configuration file.\n" ++ e)
+               exitWith $ ExitFailure 3
+               return 0
+             Right x -> parseMonad parseConfig x
   let conf = GititConfig{ wiki_path = "wikidata"
                         , mime_types = mimeTypes }
   let fs = gitFileStore $ wiki_path conf
   st <- staticDevel "static"
-  warpDebug 3000 $ Master (Gitit{ config    = conf
+  warpDebug port $ Master (Gitit{ config    = conf
                                 , filestore = fs
                                 , getStatic = st
                                 })

@@ -78,6 +78,8 @@ executable gitit2
                  , yesod-static                  >= 1.0        && < 1.1
                  , filestore                     >= 0.5        && < 0.6
                  , containers                    >= 0.4        && < 0.5
+                 , yaml                          >= 0.7        && < 0.9
+                 , bytestring                    >= 0.9        && < 1.0
                  , gitit2
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
     if flag(executable)
