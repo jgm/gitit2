@@ -214,8 +214,7 @@ makeDefaultPage layout content = do
                 <li class=#{tabClass HistoryTab}>
                   <a href="">_{MsgHistory}</a>
               $if showTab DiscussTab
-                <li class=#{tabClass DiscussTab}
-                  ><a href="">_{MsgDiscuss}</a>
+                <li class=#{tabClass DiscussTab}><a href=@{toMaster $ ViewR $ discussPageFor page}>_{MsgDiscuss}</a>
           <div #content>
             ^{content}
       <div #sidebar .yui-b .first>
@@ -300,7 +299,16 @@ pageForPath fp = return $ Page $ T.pack $
      else fp
 
 isDiscussPage :: Page -> Bool
-isDiscussPage (Page x) = "@" `T.isPrefixOf` x
+isDiscussPage (Page x) = "@" `T.isPrefixOf` x'
+  where x' = case reverse (T.splitOn "/" x) of
+                  []    -> ""
+                  (y:_) -> y
+
+discussPageFor :: Page -> Page
+discussPageFor (Page x) = Page $
+  case reverse (T.splitOn "/" x) of
+        []     -> "@"
+        (y:ys) -> T.intercalate "/" $ reverse ys ++ ["@" <> y]
 
 isPageFile :: FilePath -> GHandler Gitit master Bool
 isPageFile f = return $ takeExtension f == ".page"
