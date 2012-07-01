@@ -3,6 +3,7 @@
 import Network.Gitit2
 import Yesod
 import Yesod.Static
+import Network.Wai.Handler.Warp
 import Data.FileStore
 import Data.Yaml
 import qualified Data.ByteString.Char8 as B
@@ -113,9 +114,13 @@ main = do
   mimes <- case mime_types_file conf of
                 Nothing -> return mimeTypes
                 Just f  -> readMimeTypesFile f
-  warpDebug (port conf) $ Master (Gitit{ config    = GititConfig{
-                                           mime_types = mimes
-                                           }
-                                       , filestore = fs
-                                       , getStatic = st
-                                       })
+  let settings = defaultSettings{ settingsPort = port conf }
+  -- in future, could add option to use runSettingsSocket...
+  let runner = runSettings settings
+  runner =<< toWaiApp
+      (Master (Gitit{ config    = GititConfig{
+                                     mime_types = mimes
+                                  }
+                    , filestore = fs
+                    , getStatic = st
+                    }))
