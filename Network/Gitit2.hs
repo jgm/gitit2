@@ -576,17 +576,32 @@ searchResults patterns = do
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
-    -- TODO add search.js
+    toWidget [julius|
+      function toggleMatches(obj) {
+        var pattern = $('#pattern').text();
+        var matches = obj.next('.matches')
+        matches.slideToggle(300);
+        if (obj.html() == '\u25BC') {
+            obj.html('\u25B2');
+          } else {
+            obj.html('\u25BC');
+          };
+        }
+      $(document).ready(function (){
+         $('a.showmatch').attr('onClick', 'toggleMatches($(this));');
+         $('pre.matches').hide();
+         $('a.showmatch').show();
+         });
+    |]
     [whamlet|
       <h1>#{T.unwords patterns}
       <ol>
         $forall (page, cont) <- matches''
           <li>
-            <p>
-              <a href=@{toMaster $ ViewR page}>#{page}
-              $if not (null cont)
-                 <a href="#" .showmatch>[...]
-            <pre .matches style="display:none">#{unlines cont}
+            <a href=@{toMaster $ ViewR page}>#{page}
+            $if not (null cont)
+               <a href="#" .showmatch>&#x25BC;
+            <pre .matches>#{unlines cont}
     |]
 
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
