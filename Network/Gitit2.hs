@@ -3,7 +3,6 @@
              ScopedTypeVariables #-}
 module Network.Gitit2 ( GititConfig (..)
                       , Page (..)
-                      , Dir (..)
                       , HasGitit (..)
                       , Gitit (..)
                       , GititUser (..)
@@ -64,47 +63,31 @@ data GititConfig = GititConfig{
      , mime_types :: M.Map String ContentType -- ^ Table of mime types
      }
 
--- | Path to a wiki page.  Pages can't begin with '_'.
-data Page = Page Text deriving (Show, Read, Eq)
+-- | Path to a wiki page.  Page and page components can't begin with '_'.
+data Page = Page [Text] deriving (Show, Read, Eq)
 
 -- for now, we disallow @*@ and @?@ in page names, because git filestore
 -- does not deal with them properly, and darcs filestore disallows them.
 instance PathMultiPiece Page where
-  toPathMultiPiece (Page x) = T.splitOn "/" x
-  fromPathMultiPiece (x:xs) = if "_" `T.isPrefixOf` x ||
-                                 "*" `T.isInfixOf` x ||
-                                 "?" `T.isInfixOf` x ||
-                                 ".." `T.isInfixOf` x ||
-                                 "/_" `T.isInfixOf` x
-                                 then Nothing
-                                 else Just (Page $ T.intercalate "/" $ x:xs)
+  toPathMultiPiece (Page x) = x
+  fromPathMultiPiece xs = if any (\x ->  "_" `T.isPrefixOf` x ||
+                                         "*" `T.isInfixOf` x ||
+                                         "?" `T.isInfixOf` x ||
+                                         ".." `T.isInfixOf` x ||
+                                         "/_" `T.isInfixOf` x) xs
+                             then Nothing
+                             else Just (Page xs)
   fromPathMultiPiece []     = Nothing
 
 instance ToMarkup Page where
-  toMarkup (Page x) = toMarkup x
+  toMarkup (Page xs) = toMarkup $ T.intercalate "/" xs
 
 instance ToMessage Page where
-  toMessage (Page x) = x
+  toMessage (Page xs) = T.intercalate "/" xs
 
 instance ToMarkup (Maybe Page) where
   toMarkup (Just x) = toMarkup x
   toMarkup Nothing  = ""
-
--- | Wiki directory.  Directories can't begin with '_'.
-data Dir = Dir Text deriving (Show, Read, Eq)
-
-instance PathMultiPiece Dir where
-  toPathMultiPiece (Dir x) = T.splitOn "/" x
-  fromPathMultiPiece (x:xs) = if "_" `T.isPrefixOf` x
-                              then Nothing
-                              else Just (Dir $ T.intercalate "/" $ x:xs)
-  fromPathMultiPiece []     = Just $ Dir ""
-
-instance ToMarkup Dir where
-  toMarkup (Dir x) = toMarkup x
-
-instance ToMessage Dir where
-  toMessage (Dir x) = x
 
 -- | A user.
 data GititUser = GititUser{ gititUserName  :: String
@@ -163,7 +146,8 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 / HomeR GET
 /_help HelpR GET
 /_static StaticR Static getStatic
-/_index/*Dir  IndexR GET
+/_index IndexBaseR GET
+/_index/*Page  IndexR GET
 /favicon.ico FaviconR GET
 /robots.txt RobotsR GET
 /_random RandomR GET
@@ -226,7 +210,7 @@ makeDefaultPage layout content = do
               <legend>Site
               <ul>
                 <li><a href=@{toMaster HomeR}>_{MsgFrontPage}</a>
-                <li><a href=@{toMaster $ IndexR $ Dir ""}>_{MsgDirectory}</a>
+                <li><a href=@{toMaster $ IndexBaseR}>_{MsgDirectory}</a>
                 <li><a href="">_{MsgCategories}</a>
                 <li><a href=@{toMaster $ RandomR}>_{MsgRandomPage}</a>
                 <li><a href="">_{MsgRecentActivity}</a>
@@ -259,7 +243,7 @@ convertWikiLinks :: Inline -> GHandler Gitit master Inline
 convertWikiLinks (Link ref ("", "")) = do
   toMaster <- getRouteToMaster
   toUrl <- getUrlRender
-  let route = ViewR $ Page $ T.pack $ stringify ref
+  let route = ViewR $ Page $ T.splitOn "/" $ T.pack $ stringify ref
   return $ Link ref (T.unpack $ toUrl $ toMaster route, "")
 convertWikiLinks x = return x
 
@@ -287,28 +271,24 @@ sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
                                   Nothing    -> Nothing
 
 pathForPage :: Page -> GHandler Gitit master FilePath
-pathForPage (Page page) = return $ T.unpack page <.> "page"
+pathForPage p = return $ T.unpack (toMessage p) <.> "page"
 
 pathForFile :: Page -> GHandler Gitit master FilePath
-pathForFile (Page page) = return $ T.unpack page
+pathForFile p = return $ T.unpack $ toMessage p
 
 pageForPath :: FilePath -> GHandler Gitit master Page
-pageForPath fp = return $ Page $ T.pack $
+pageForPath fp = return $ Page $ T.splitOn "/" $ T.pack $
   if takeExtension fp == ".page"
      then dropExtension fp
      else fp
 
 isDiscussPage :: Page -> Bool
-isDiscussPage (Page x) = "@" `T.isPrefixOf` x'
-  where x' = case reverse (T.splitOn "/" x) of
-                  []    -> ""
-                  (y:_) -> y
+isDiscussPage (Page xs) = case reverse xs of
+                               (x:_) -> "@" `T.isPrefixOf` x
+                               _     -> False
 
 discussPageFor :: Page -> Page
-discussPageFor (Page x) = Page $
-  case reverse (T.splitOn "/" x) of
-        []     -> "@"
-        (y:ys) -> T.intercalate "/" $ reverse ys ++ ["@" <> y]
+discussPageFor (Page xs) = Page $ init xs ++ ["@" <> last xs]
 
 isPageFile :: FilePath -> GHandler Gitit master Bool
 isPageFile f = return $ takeExtension f == ".page"
@@ -330,11 +310,11 @@ isSourceFile path' = do
 
 -- TODO : make the front page configurable
 getHomeR :: HasGitit master => GHandler Gitit master RepHtml
-getHomeR = getViewR (Page "Front Page")
+getHomeR = getViewR (Page ["Front Page"])
 
 -- TODO : make the help page configurable
 getHelpR :: HasGitit master => GHandler Gitit master RepHtml
-getHelpR = getViewR (Page "Help")
+getHelpR = getViewR (Page ["Help"])
 
 getRandomR :: HasGitit master => GHandler Gitit master RepHtml
 getRandomR = do
@@ -447,27 +427,30 @@ view mbrev page = do
                          ^{toWikiPage cont}
                        |]
 
-getIndexR :: HasGitit master => Dir -> GHandler Gitit master RepHtml
-getIndexR (Dir dir) = do
+getIndexBaseR :: HasGitit master => GHandler Gitit master RepHtml
+getIndexBaseR = getIndexFor []
+
+getIndexR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+getIndexR (Page xs) = getIndexFor xs
+
+getIndexFor :: HasGitit master => [Text] -> GHandler Gitit master RepHtml
+getIndexFor paths = do
   fs <- filestore <$> getYesodSub
-  listing <- liftIO $ directory fs $ T.unpack dir
+  listing <- liftIO $ directory fs $ T.unpack $ T.intercalate "/" paths
   let isDiscussionPage (FSFile f) = isDiscussPageFile f
       isDiscussionPage (FSDirectory _) = return False
   prunedListing <- filterM (fmap not . isDiscussionPage) listing
-  let updirs = inits $ filter (not . T.null) $ toPathMultiPiece (Dir dir)
+  let updirs = inits $ filter (not . T.null) paths
   toMaster <- getRouteToMaster
-  let pref = if T.null dir
-                then id
-                else \x -> dir <> "/" <> x
   let process (FSFile f) = do
         Page page <- pageForPath f
         ispage <- isPageFile f
-        let route = toMaster $ ViewR $ Page $ pref page
-        return (if ispage then ("page" :: Text) else "upload", route, page)
+        let route = toMaster $ ViewR $ Page (paths ++ page)
+        return (if ispage then ("page" :: Text) else "upload", route, toMessage $ Page page)
       process (FSDirectory f) = do
         Page page <- pageForPath f
-        let route = toMaster $ IndexR $ Dir $ pref page
-        return ("folder", route, page)
+        let route = toMaster $ IndexR $ Page (paths ++ page)
+        return ("folder", route, toMessage $ Page page)
   entries <- mapM process prunedListing
   makePage pageLayout{ pgName = Nothing } $ [whamlet|
     <h1 .title>
@@ -482,10 +465,10 @@ getIndexR (Dir dir) = do
 
 upDir :: (Route Gitit -> Route master) -> [Text] -> GWidget Gitit master ()
 upDir toMaster fs = do
-  let lastdir = case reverse fs of
-                     (f:_)  -> f
-                     []     -> "\x2302"
-  [whamlet|<a href=@{toMaster $ IndexR $ maybe (Dir "") id $ fromPathMultiPiece fs}>#{lastdir}/</a>|]
+  let (route, lastdir) = case reverse fs of
+                          (f:_)  -> (IndexR $ Page fs, f)
+                          []     -> (IndexBaseR, "\x2302")
+  [whamlet|<a href=@{toMaster $ route}>#{lastdir}/</a>|]
 
 getRawContents :: HasGitit master
                => FilePath
@@ -545,7 +528,7 @@ postGoR = do
   toMaster <- getRouteToMaster
   case (findPage exactMatch `mplus` findPage insensitiveMatch `mplus`
         findPage prefixMatch) of
-       Just m  -> redirect $ toMaster $ ViewR $ Page m
+       Just m  -> redirect $ toMaster $ ViewR $ Page $ T.splitOn "/" m
        Nothing -> searchResults $ T.words gotopage
 
 searchResults :: HasGitit master => [Text] -> GHandler Gitit master RepHtml
@@ -579,7 +562,7 @@ searchResults patterns = do
                                          then 100
                                          else 0
   let matches' = reverse $ sortBy (comparing relevance) matches
-  let matches'' = map (\(f,c) -> (Page $ T.pack $ dropExtension f, c)) matches'
+  let matches'' = map (\(f,c) -> (Page $ T.splitOn "/" $ T.pack $ dropExtension f, c)) matches'
   toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
