@@ -70,20 +70,27 @@ data Page = Page [Text] deriving (Show, Read, Eq)
 -- does not deal with them properly, and darcs filestore disallows them.
 instance PathMultiPiece Page where
   toPathMultiPiece (Page x) = x
-  fromPathMultiPiece xs = if any (\x ->  "_" `T.isPrefixOf` x ||
-                                         "*" `T.isInfixOf` x ||
-                                         "?" `T.isInfixOf` x ||
-                                         ".." `T.isInfixOf` x ||
-                                         "/_" `T.isInfixOf` x) xs
-                             then Nothing
-                             else Just (Page xs)
   fromPathMultiPiece []     = Nothing
+  fromPathMultiPiece xs@(_:_) =
+     if any (\x ->  "_" `T.isPrefixOf` x ||
+                    "*" `T.isInfixOf` x ||
+                    "?" `T.isInfixOf` x ||
+                    ".." `T.isInfixOf` x ||
+                    "/_" `T.isInfixOf` x) xs
+                    then Nothing
+                    else Just (Page xs)
+
+pageToText :: Page -> Text
+pageToText (Page xs) = T.intercalate "/" xs
+
+textToPage :: Text -> Page
+textToPage x = Page $ T.splitOn "/" x
 
 instance ToMarkup Page where
-  toMarkup (Page xs) = toMarkup $ T.intercalate "/" xs
+  toMarkup = toMarkup . pageToText
 
 instance ToMessage Page where
-  toMessage (Page xs) = T.intercalate "/" xs
+  toMessage = pageToText
 
 instance ToMarkup (Maybe Page) where
   toMarkup (Just x) = toMarkup x
@@ -243,7 +250,7 @@ convertWikiLinks :: Inline -> GHandler Gitit master Inline
 convertWikiLinks (Link ref ("", "")) = do
   toMaster <- getRouteToMaster
   toUrl <- getUrlRender
-  let route = ViewR $ Page $ T.splitOn "/" $ T.pack $ stringify ref
+  let route = ViewR $ textToPage $ T.pack $ stringify ref
   return $ Link ref (T.unpack $ toUrl $ toMaster route, "")
 convertWikiLinks x = return x
 
@@ -277,7 +284,7 @@ pathForFile :: Page -> GHandler Gitit master FilePath
 pathForFile p = return $ T.unpack $ toMessage p
 
 pageForPath :: FilePath -> GHandler Gitit master Page
-pageForPath fp = return $ Page $ T.splitOn "/" $ T.pack $
+pageForPath fp = return $ textToPage $ T.pack $
   if takeExtension fp == ".page"
      then dropExtension fp
      else fp
@@ -528,7 +535,7 @@ postGoR = do
   toMaster <- getRouteToMaster
   case (findPage exactMatch `mplus` findPage insensitiveMatch `mplus`
         findPage prefixMatch) of
-       Just m  -> redirect $ toMaster $ ViewR $ Page $ T.splitOn "/" m
+       Just m  -> redirect $ toMaster $ ViewR $ textToPage m
        Nothing -> searchResults $ T.words gotopage
 
 searchResults :: HasGitit master => [Text] -> GHandler Gitit master RepHtml
@@ -562,7 +569,7 @@ searchResults patterns = do
                                          then 100
                                          else 0
   let matches' = reverse $ sortBy (comparing relevance) matches
-  let matches'' = map (\(f,c) -> (Page $ T.splitOn "/" $ T.pack $ dropExtension f, c)) matches'
+  let matches'' = map (\(f,c) -> (textToPage $ T.pack $ dropExtension f, c)) matches'
   toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
