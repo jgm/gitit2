@@ -59,8 +59,7 @@ instance Yesod Gitit
 
 -- | Configuration for a gitit wiki.
 data GititConfig = GititConfig{
-       wiki_path  :: FilePath    -- ^ Path to the repository.
-     , mime_types :: M.Map String ContentType -- ^ Table of mime types
+       mime_types :: M.Map String ContentType -- ^ Table of mime types
      }
 
 -- | Path to a wiki page.  Page and page components can't begin with '_'.

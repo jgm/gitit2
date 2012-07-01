@@ -5,7 +5,7 @@ import Yesod
 import Yesod.Static
 import Data.FileStore
 import Data.Yaml
-import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
 import System.IO
 import System.Exit
@@ -67,24 +67,55 @@ mimeTypes = M.fromList
         ,("wav","application/x-wav")
         ,("hs","text/plain")]
 
-parseConfig :: FromJSON a => Object -> Parser a
+data Conf = Conf { port            :: Int
+                 , wiki_path       :: FilePath
+                 , static_dir      :: FilePath
+                 , mime_types_file :: Maybe FilePath
+                 }
+
+-- | Read a file associating mime types with extensions, and return a
+-- map from extensions to types. Each line of the file consists of a
+-- mime type, followed by space, followed by a list of zero or more
+-- extensions, separated by spaces. Example: text/plain txt text
+readMimeTypesFile :: FilePath -> IO (M.Map String ContentType)
+readMimeTypesFile f = catch
+  ((foldr go M.empty . map words . lines) `fmap` readFile f)
+  handleMimeTypesFileNotFound
+     where go []     m = m  -- skip blank lines
+           go (x:xs) m = foldr (\ext -> M.insert ext $ B.pack x) m xs
+           handleMimeTypesFileNotFound e = do
+             hPutStrLn stderr "Could not parse mime types file."
+             return mimeTypes
+
+parseConfig :: Object -> Parser Conf
 parseConfig o = do
-  o .: "port"
+  port' <- o .:? "port" .!= 3000
+  static_dir' <- o .:? "static_dir" .!= "static"
+  wiki_path' <- o .:? "wiki_path" .!= "wikidata"
+  mime_types_file' <- o .:? "mime_types_file"
+  return Conf{ port = port'
+             , wiki_path = wiki_path'
+             , static_dir = static_dir'
+             , mime_types_file = mime_types_file'
+             }
 
 main :: IO ()
 main = do
   res <- decodeEither `fmap` B.readFile "config/settings.yaml"
-  port <- case res of
+  conf <- case res of
              Left e  -> do
                hPutStrLn stderr ("Error reading configuration file.\n" ++ e)
                exitWith $ ExitFailure 3
-               return 0
+               return undefined
              Right x -> parseMonad parseConfig x
-  let conf = GititConfig{ wiki_path = "wikidata"
-                        , mime_types = mimeTypes }
   let fs = gitFileStore $ wiki_path conf
-  st <- staticDevel "static"
-  warpDebug port $ Master (Gitit{ config    = conf
-                                , filestore = fs
-                                , getStatic = st
-                                })
+  st <- staticDevel $ static_dir conf
+  mimes <- case mime_types_file conf of
+                Nothing -> return mimeTypes
+                Just f  -> readMimeTypesFile f
+  warpDebug (port conf) $ Master (Gitit{ config    = GititConfig{
+                                           mime_types = mimes
+                                           }
+                                       , filestore = fs
+                                       , getStatic = st
+                                       })
