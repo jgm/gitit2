@@ -155,3 +155,5 @@ box-shadow: #555 0 0 10px;
 }
 /* Deal with multiple footnotes one after another; Charuru */
 sup + sup { margin-left: 2px; }
+
+p.pagination { text-align: center; font-size: 200%; font-weight: bold; }
