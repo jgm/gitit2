@@ -297,7 +297,9 @@ isDiscussPage (Page xs) = case reverse xs of
                                _     -> False
 
 discussPageFor :: Page -> Page
-discussPageFor (Page xs) = Page $ init xs ++ ["@" <> last xs]
+discussPageFor (Page xs)
+  | isDiscussPage (Page xs) = Page xs
+  | otherwise               = Page $ init xs ++ ["@" <> last xs]
 
 isPageFile :: FilePath -> GHandler Gitit master Bool
 isPageFile f = return $ takeExtension f == ".page"
@@ -427,7 +429,9 @@ view mbrev page = do
            makePage pageLayout{ pgName = Just page
                               , pgPageTools = True
                               , pgTabs = tabs
-                              , pgSelectedTab = ViewTab } $
+                              , pgSelectedTab = if isDiscussPage page
+                                                   then DiscussTab
+                                                   else ViewTab } $
                     do setTitle $ toMarkup page
                        [whamlet|
                          <h1 .title>#{page}
