@@ -15,6 +15,7 @@ module Network.Gitit2 ( GititConfig (..)
                       ) where
 
 import Prelude hiding (catch)
+import Control.Exception (catch)
 import qualified Data.Map as M
 import Yesod hiding (MsgDelete)
 import Yesod.Static
@@ -166,6 +167,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_delete/*Page DeleteR GET POST
 /_search SearchR POST
 /_go GoR POST
+/_from/#RevisionId/_to/#RevisionId/*Page DiffR GET
 /*Page     ViewR GET
 |]
 
@@ -722,3 +724,30 @@ editForm mbedit = renderDivs $ Edit
         validateNonempty y
           | T.null y = Left MsgValueRequired
           | otherwise = Right y
+
+
+getDiffR :: HasGitit master
+         => RevisionId -> RevisionId -> Page -> GHandler Gitit master RepHtml
+getDiffR fromRev toRev page = do
+  fs <- filestore <$> getYesodSub
+  pagePath <- pathForPage page
+  filePath <- pathForFile page
+  rawDiff <- liftIO
+             $ catch (diff fs pagePath (Just fromRev) (Just toRev))
+             $ \e -> case e of
+                      FS.NotFound -> diff fs filePath (Just fromRev) (Just toRev)
+                      _           -> throw e
+  let classFor B = ("unchanged" :: Text)
+      classFor F = "deleted"
+      classFor S = "added"
+  makePage pageLayout{ pgName = Just page
+                     , pgTabs = []
+                     , pgSelectedTab = EditTab } $
+   [whamlet|
+     <h1 .title>#{page}
+     <h2 .revision>#{fromRev} &rarr; #{toRev}
+     <pre>
+        $forall (t,xs) <- rawDiff
+           <span .#{classFor t}>#{unlines xs}
+     |]
+
