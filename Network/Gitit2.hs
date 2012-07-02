@@ -168,7 +168,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_search SearchR POST
 /_go GoR POST
 /_diff/#RevisionId/#RevisionId/*Page DiffR GET
-/_history/#Int/#Int/*Page HistoryR GET
+/_history/#Int/*Page HistoryR GET
 /*Page     ViewR GET
 |]
 
@@ -205,7 +205,7 @@ makeDefaultPage layout content = do
                   <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
               $if showTab HistoryTab
                 <li class=#{tabClass HistoryTab}>
-                  <a href=@{toMaster $ HistoryR 0 20 page}>_{MsgHistory}</a>
+                  <a href=@{toMaster $ HistoryR 1 page}>_{MsgHistory}</a>
               $if showTab DiscussTab
                 <li class=#{tabClass DiscussTab}><a href=@{toMaster $ ViewR $ discussPageFor page}>_{MsgDiscuss}</a>
           <div #content>
@@ -753,8 +753,9 @@ getDiffR fromRev toRev page = do
      |]
 
 getHistoryR :: HasGitit master
-            => Int -> Int -> Page -> GHandler Gitit master RepHtml
-getHistoryR start items page = do
+            => Int -> Page -> GHandler Gitit master RepHtml
+getHistoryR start page = do
+  let items = 20 -- items per page
   fs <- filestore <$> getYesodSub
   pagePath <- pathForPage page
   filePath <- pathForFile page
@@ -769,15 +770,18 @@ getHistoryR start items page = do
   toMaster <- getRouteToMaster
   let pageForwardLink = if length hist > items
                            then Just $ toMaster
-                                     $ HistoryR (start + items) items page
+                                     $ HistoryR (start + items) page
                            else Nothing
   let pageBackLink    = if start > 1
                            then Just $ toMaster
-                                     $ HistoryR (start - items) items page
+                                     $ HistoryR (start - items) page
                            else Nothing
+  let tabs = if path == pagePath
+                then [ViewTab,EditTab,HistoryTab,DiscussTab]
+                else [ViewTab,HistoryTab]
   makePage pageLayout{ pgName = Just page
-                     , pgTabs = []
-                     , pgSelectedTab = EditTab } $
+                     , pgTabs = tabs
+                     , pgSelectedTab = HistoryTab } $
    [whamlet|
      <h1 .title>#{page}
      <ul>
