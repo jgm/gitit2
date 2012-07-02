@@ -167,7 +167,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_delete/*Page DeleteR GET POST
 /_search SearchR POST
 /_go GoR POST
-/_from/#RevisionId/_to/#RevisionId/*Page DiffR GET
+/_diff/#RevisionId/#RevisionId/*Page DiffR GET
 /*Page     ViewR GET
 |]
 
