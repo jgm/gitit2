@@ -1,11 +1,7 @@
 Features to implement:
 
-_ fix discuss page tabs
-  instead of 'view', we need 'page' -
-  or maybe it would be easier if discuss were a side link, not a tab
-_ export
 _ history
-_ diffs
+_ export
 _ file upload
 _ atom feed (site)
 _ atom feed (page)

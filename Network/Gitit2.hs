@@ -198,8 +198,12 @@ makeDefaultPage layout content = do
           $maybe page <- pgName layout
             <ul .tabs>
               $if showTab ViewTab
-                <li class=#{tabClass ViewTab}>
-                  <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
+                $if isDiscussPage page
+                  <li class=#{tabClass ViewTab}>
+                    <a href=@{toMaster $ ViewR $ discussedPage page}>_{MsgPage}</a>
+                $else
+                  <li class=#{tabClass ViewTab}>
+                    <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
               $if showTab EditTab
                 <li class=#{tabClass EditTab}>
                   <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
@@ -300,6 +304,11 @@ discussPageFor :: Page -> Page
 discussPageFor (Page xs)
   | isDiscussPage (Page xs) = Page xs
   | otherwise               = Page $ init xs ++ ["@" <> last xs]
+
+discussedPage :: Page -> Page
+discussedPage (Page xs)
+  | isDiscussPage (Page xs) = Page $ init xs ++ [T.drop 1 $ last xs]
+  | otherwise               = Page xs
 
 isPageFile :: FilePath -> GHandler Gitit master Bool
 isPageFile f = return $ takeExtension f == ".page"
