@@ -169,6 +169,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_go GoR POST
 /_diff/#RevisionId/#RevisionId/*Page DiffR GET
 /_history/#Int/*Page HistoryR GET
+/_activity/#Int ActivityR GET
 /*Page     ViewR GET
 |]
 
@@ -226,7 +227,7 @@ makeDefaultPage layout content = do
                 <li><a href=@{toMaster $ IndexBaseR}>_{MsgDirectory}</a>
                 <li><a href="">_{MsgCategories}</a>
                 <li><a href=@{toMaster $ RandomR}>_{MsgRandomPage}</a>
-                <li><a href="">_{MsgRecentActivity}</a>
+                <li><a href=@{toMaster $ ActivityR 1}>_{MsgRecentActivity}</a>
                 <li><a href="">_{MsgUploadFile}</a></li>
                 <li><a href="" type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                 <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
@@ -834,5 +835,15 @@ getHistoryR start page = do
        $maybe fl <- pageForwardLink
          <a href=@{fl}>&rarr;
      |]
--- TODO nice history views
+
+getActivityR :: HasGitit master
+              => Int -> GHandler Gitit master RepHtml
+getActivityR start = do
+  -- TODO
+  makePage pageLayout{ pgName = Nothing
+                     , pgTabs = []
+                     , pgSelectedTab = HistoryTab } $ do
+    [whamlet|
+      <h1 .title>Recent activity
+    |]
 
