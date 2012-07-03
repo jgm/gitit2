@@ -825,9 +825,25 @@ getHistoryR start page = do
      <ul>
        $forall (pos,rev) <- hist'
          <li .difflink order=#{pos} revision=#{revId rev} diffurl=@{toMaster $ DiffR "FROM" "TO" page}>
-           <span .date>#{show $ revDateTime rev} 
-           (<span .author>#{authorName $ revAuthor rev}</span>): 
-           <a href=@{toMaster $ RevisionR (revId rev) page}><span .subject>#{revDescription rev}
+           ^{revisionDetails (toMaster $ RevisionR (revId rev) page) rev}
+     ^{pagination pageBackLink pageForwardLink}
+     |]
+
+revisionDetails :: HasGitit master
+                => (Route master) -> Revision -> GWidget Gitit master ()
+revisionDetails route rev =
+  [whamlet|
+    <span .date>#{show $ revDateTime rev} 
+    (<span .author>#{authorName $ revAuthor rev}</span>): 
+    <a href=@{route}><span .subject>#{revDescription rev}
+  |]
+
+pagination :: HasGitit master
+           => Maybe (Route master)    -- back link
+           -> Maybe (Route master)    -- forward link
+           -> GWidget Gitit master ()
+pagination pageBackLink pageForwardLink =
+   [whamlet|
      <p .pagination>
        $maybe bl <- pageBackLink
          <a href=@{bl}>&larr;
