@@ -1,6 +1,7 @@
 Features to implement:
 
-_ history
+_ activity
+_ user pages (linked from history)
 _ export
 _ file upload
 _ atom feed (site)

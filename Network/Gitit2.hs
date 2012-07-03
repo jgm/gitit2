@@ -824,7 +824,9 @@ getHistoryR start page = do
      <ul>
        $forall (pos,rev) <- hist'
          <li .difflink order=#{pos} revision=#{revId rev} diffurl=@{toMaster $ DiffR "FROM" "TO" page}>
-           <span .date>#{show $ revDateTime rev}
+           <span .date>#{show $ revDateTime rev} 
+           (<span .author>#{authorName $ revAuthor rev}</span>): 
+           <a href=@{toMaster $ RevisionR (revId rev) page}><span .subject>#{revDescription rev}
      <p .pagination>
        $maybe bl <- pageBackLink
          <a href=@{bl}>&larr;
