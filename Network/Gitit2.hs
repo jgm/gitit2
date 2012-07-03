@@ -780,6 +780,7 @@ getHistoryR start page = do
   let offset = start - 1
   hist <- liftIO $ drop offset <$>
            history fs [path] (TimeRange Nothing Nothing) (Just $ start + items)
+  let hist' = zip [(1 :: Int)..] hist
   toMaster <- getRouteToMaster
   let pageForwardLink = if length hist > items
                            then Just $ toMaster
@@ -794,12 +795,36 @@ getHistoryR start page = do
                 else [ViewTab,HistoryTab]
   makePage pageLayout{ pgName = Just page
                      , pgTabs = tabs
-                     , pgSelectedTab = HistoryTab } $
+                     , pgSelectedTab = HistoryTab } $ do
+   addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-ui-1.8.21.custom.min.js"] []
+   toWidget [julius|
+      $(document).ready(function(){
+          $("#content").prepend("<p>Drag one revision onto another to see differences.</p>");
+          $(".difflink").draggable({helper: "clone"});
+          $(".difflink").droppable({
+               accept: ".difflink",
+               drop: function(ev, ui) {
+                  var targetOrder = parseInt($(this).attr("order"));
+                  var sourceOrder = parseInt($(ui.draggable).attr("order"));
+                  var diffurl = $(this).attr("diffurl");
+                  if (targetOrder < sourceOrder) {
+                      var fromRev = $(this).attr("revision");
+                      var toRev   = $(ui.draggable).attr("revision");
+                  } else {
+                      var toRev   = $(this).attr("revision");
+                      var fromRev = $(ui.draggable).attr("revision");
+                  };
+                  location.href = diffurl.replace('FROM',fromRev).replace('TO',toRev);
+                  }
+              });
+      });
+   |]
    [whamlet|
      <h1 .title>#{page}
      <ul>
-       $forall rev <- hist
-         <li>#{revId rev}
+       $forall (pos,rev) <- hist'
+         <li .difflink order=#{pos} revision=#{revId rev} diffurl=@{toMaster $ DiffR "FROM" "TO" page}>
+           <span .date>#{show $ revDateTime rev}
      <p .pagination>
        $maybe bl <- pageBackLink
          <a href=@{bl}>&larr;
