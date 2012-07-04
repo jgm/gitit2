@@ -113,8 +113,8 @@ pre.matches { margin: 0; padding: 0; }
 #pattern { background-color: yellow; font-weight: bold; }
 pre.matches span.highlighted { background-color: yellow; }
 
-.added { background-color: yellow; }
-.deleted { text-decoration: line-through; color: gray; }
+span.added { background-color: yellow; }
+span.deleted { text-decoration: line-through; color: gray; }
 
 /* .req is used to hide a honeypot in a form */
 .req { display: none; }

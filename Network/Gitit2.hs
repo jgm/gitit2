@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
-             ScopedTypeVariables #-}
+             ScopedTypeVariables, TupleSections #-}
 module Network.Gitit2 ( GititConfig (..)
                       , Page (..)
                       , HasGitit (..)
@@ -825,18 +825,27 @@ getHistoryR start page = do
      <ul>
        $forall (pos,rev) <- hist'
          <li .difflink order=#{pos} revision=#{revId rev} diffurl=@{toMaster $ DiffR "FROM" "TO" page}>
-           <a href=@{toMaster $ RevisionR (revId rev) page}>
-             ^{revisionDetails rev}
+           ^{revisionDetails rev}
      ^{pagination pageBackLink pageForwardLink}
      |]
 
 revisionDetails :: HasGitit master
-                => Revision -> GWidget Gitit master ()
-revisionDetails rev =
+                => Revision
+                -> GWidget Gitit master ()
+revisionDetails rev = do
+  toMaster <- lift getRouteToMaster
+  let toChange :: Change -> GHandler Gitit master (Text, Page)
+      toChange (Modified f) = ("modified",) <$> pageForPath f
+      toChange (Deleted  f) = ("deleted",)  <$> pageForPath f
+      toChange (Added    f) = ("added",)    <$> pageForPath f
+  changes <- lift $ mapM toChange $ revChanges rev
   [whamlet|
     <span .date>#{show $ revDateTime rev} 
     (<span .author>#{authorName $ revAuthor rev}</span>): 
-    <span .subject>#{revDescription rev}
+    <span .subject>#{revDescription rev} 
+    $forall (cls,pg) <- changes
+      <a href=@{toMaster $ RevisionR (revId rev) pg}>
+        <span .#{cls}>#{pg}</span> 
   |]
 
 pagination :: HasGitit master
@@ -880,8 +889,6 @@ getActivityR start = do
      <ul>
        $forall (pos,rev) <- hist'
          <li>
-           $forall c <- revChanges rev
-             <span .pagename>#{show c} 
            ^{revisionDetails rev}
      ^{pagination pageBackLink pageForwardLink}
     |]
