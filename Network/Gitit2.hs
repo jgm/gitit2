@@ -825,17 +825,18 @@ getHistoryR start page = do
      <ul>
        $forall (pos,rev) <- hist'
          <li .difflink order=#{pos} revision=#{revId rev} diffurl=@{toMaster $ DiffR "FROM" "TO" page}>
-           ^{revisionDetails (toMaster $ RevisionR (revId rev) page) rev}
+           <a href=@{toMaster $ RevisionR (revId rev) page}>
+             ^{revisionDetails rev}
      ^{pagination pageBackLink pageForwardLink}
      |]
 
 revisionDetails :: HasGitit master
-                => (Route master) -> Revision -> GWidget Gitit master ()
-revisionDetails route rev =
+                => Revision -> GWidget Gitit master ()
+revisionDetails rev =
   [whamlet|
     <span .date>#{show $ revDateTime rev} 
     (<span .author>#{authorName $ revAuthor rev}</span>): 
-    <a href=@{route}><span .subject>#{revDescription rev}
+    <span .subject>#{revDescription rev}
   |]
 
 pagination :: HasGitit master
@@ -855,11 +856,33 @@ pagination pageBackLink pageForwardLink =
 getActivityR :: HasGitit master
               => Int -> GHandler Gitit master RepHtml
 getActivityR start = do
-  -- TODO
+  let items = 20
+  let offset = start - 1
+  fs <- filestore <$> getYesodSub
+  hist <- liftIO $ drop offset <$>
+           history fs [] (TimeRange Nothing Nothing) (Just $ start + items)
+  let hist' = zip [(1 :: Int)..] hist
+  toMaster <- getRouteToMaster
+  let pageForwardLink = if length hist > items
+                           then Just $ toMaster
+                                     $ ActivityR (start + items)
+                           else Nothing
+  let pageBackLink    = if start > 1
+                           then Just $ toMaster
+                                     $ ActivityR (start - items)
+                           else Nothing
+  let pagesAffected = "TODO Pages affected"  -- TODO
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = HistoryTab } $ do
-    [whamlet|
-      <h1 .title>Recent activity
+   [whamlet|
+     <h1 .title>Recent activity
+     <ul>
+       $forall (pos,rev) <- hist'
+         <li>
+           $forall c <- revChanges rev
+             <span .pagename>#{show c} 
+           ^{revisionDetails rev}
+     ^{pagination pageBackLink pageForwardLink}
     |]
 
