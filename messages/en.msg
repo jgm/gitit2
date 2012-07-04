@@ -25,3 +25,4 @@ Deleted page@Page: Deleted #{page}
 Reverted rev@RevisionId: Reverted to #{rev}
 Merged rev@RevisionId: The page has been edited since you checked it out. Changes from revision #{rev} have been merged into your edits below.
 NewPage page@Page:  There is no page #{page}.  Create it by editing below.
+DragDiff: Drag one revision onto another to see differences.

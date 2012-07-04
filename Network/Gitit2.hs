@@ -800,7 +800,6 @@ getHistoryR start page = do
    addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-ui-1.8.21.custom.min.js"] []
    toWidget [julius|
       $(document).ready(function(){
-          $("#content").prepend("<p>Drag one revision onto another to see differences.</p>");
           $(".difflink").draggable({helper: "clone"});
           $(".difflink").droppable({
                accept: ".difflink",
@@ -822,6 +821,7 @@ getHistoryR start page = do
    |]
    [whamlet|
      <h1 .title>#{page}
+     <p>_{MsgDragDiff}
      <ul>
        $forall (pos,rev) <- hist'
          <li .difflink order=#{pos} revision=#{revId rev} diffurl=@{toMaster $ DiffR "FROM" "TO" page}>
