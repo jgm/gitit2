@@ -139,13 +139,18 @@ mkMessage "Gitit" "messages" "en"
 
 -- | Export formats.
 data ExportFormat = Man | ReST | LaTeX
-                    deriving (Show, Read, Eq)
+                    deriving (Show, Read, Enum, Bounded, Eq)
 
-instance PathPiece ExportFormat where
-  toPathPiece     = T.pack . show
-  fromPathPiece x = case reads (T.unpack x) of
-                           [(t,"")] -> Just t
-                           _        -> Nothing
+instance ToMarkup ExportFormat where
+  toMarkup = toMarkup . show
+
+exportFormats :: [ExportFormat]
+exportFormats = [minBound..maxBound]
+
+readExportFormat :: Monad  m => Text -> m ExportFormat
+readExportFormat f = case reads (T.unpack f) of
+                           ((x,""):_) -> return x
+                           _          -> fail "Could not read format"
 
 -- | The master site containing a Gitit subsite must be an instance
 -- of this typeclass.
@@ -184,7 +189,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_activity/#Int ActivityR GET
 /_atom AtomSiteR GET
 /_atom/*Page AtomPageR GET
-/_export/#ExportFormat/*Page ExportR POST
+/_export/*Page ExportR POST
 /*Page     ViewR GET
 |]
 
@@ -263,7 +268,11 @@ makeDefaultPage layout content = do
                   <li><a href="@{toMaster $ ViewR page}?print">_{MsgPrintableVersion}</a>
                   <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
                   <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
-                <!-- TODO exports here -->
+                <form #exportbox action=@{toMaster $ ExportR page}>
+                  <select name="format">
+                    $forall f <- exportFormats
+                      <option value=#{f}>#{f}
+                  <input type="submit" id="export" name="export" value=_{MsgExport}>
   |]
 
 -- HANDLERS and utility functions, not exported:
@@ -964,8 +973,8 @@ feed mbpage = do
     }
 
 postExportR :: HasGitit master
-            => ExportFormat -> Page -> GHandler Gitit master (ContentType, Content)
-postExportR format page = do
-  -- TODO
-  sendResponse (typePlain, toContent $ show format)
+            => Page -> GHandler Gitit master (ContentType, Content)
+postExportR page = do
+  format <- runInputPost (ireq textField "format") >>= readExportFormat
+  sendResponse (typePlain, toContent $ show (format :: ExportFormat))
 

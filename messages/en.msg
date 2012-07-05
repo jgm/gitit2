@@ -16,6 +16,7 @@ AtomFeed:  Atom feed
 Help: Help
 Search: Search
 Go: Go
+Export: Export
 RawPageSource:  Raw page source
 PrintableVersion: Printable version
 DeleteThisPage: Delete this page
