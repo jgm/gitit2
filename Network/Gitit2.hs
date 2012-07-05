@@ -42,7 +42,7 @@ import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
 import Control.Exception (throw, handle, try)
 import Text.Highlighting.Kate
-import Data.Time (UTCTime, formatTime, getCurrentTime, addUTCTime)
+import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
@@ -878,7 +878,6 @@ getActivityR start = do
   fs <- filestore <$> getYesodSub
   hist <- liftIO $ drop offset <$>
            history fs [] (TimeRange Nothing Nothing) (Just $ start + items)
-  let hist' = zip [(1 :: Int)..] hist
   toMaster <- getRouteToMaster
   let pageForwardLink = if length hist > items
                            then Just $ toMaster
@@ -888,14 +887,13 @@ getActivityR start = do
                            then Just $ toMaster
                                      $ ActivityR (start - items)
                            else Nothing
-  let pagesAffected = "TODO Pages affected"  -- TODO
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = HistoryTab } $ do
    [whamlet|
      <h1 .title>Recent activity
      <ul>
-       $forall (pos,rev) <- hist'
+       $forall rev <- hist
          <li>
            ^{revisionDetails rev}
      ^{pagination pageBackLink pageForwardLink}
@@ -912,7 +910,7 @@ feed :: HasGitit master
      => Maybe Page  -- page, or nothing for all
      -> GHandler Gitit master (Feed (Route master))
 feed mbpage = do
-  let days = 14 -- TODO make this configurable
+  let days = 14 :: Int -- TODO make this configurable
   toMaster <- getRouteToMaster
   mr <- getMessageRender
   fs <- filestore <$> getYesodSub
@@ -926,15 +924,15 @@ feed mbpage = do
            (Just 200) -- hard limit of 200 to conserve resources
   let toEntry rev = do
         let topage change = case change of
-                              Modified f -> ("",) <$> pageForPath f
+                              Modified f -> ("" :: Text,) <$> pageForPath f
                               Deleted f  -> ("-",) <$> pageForPath f
                               Added f    -> ("+",) <$> pageForPath f
         firstpage <- case revChanges rev of
                            []    -> error "feed - encountered empty changes"
                            (c:_) -> snd <$> topage c
         let toChangeDesc c = do
-             (mod, pg) <- topage c
-             return $ mod <> pageToText pg
+             (m, pg) <- topage c
+             return $ m <> pageToText pg
         changeDescrips <- mapM toChangeDesc $ revChanges rev
         return FeedEntry{
                    feedEntryLink    = toMaster $ RevisionR (revId rev) firstpage

@@ -88,7 +88,7 @@ readMimeTypesFile f = catch
      where go []     m = m  -- skip blank lines
            go (x:xs) m = foldr (\ext -> M.insert ext $ B.pack x) m xs
            handleMimeTypesFileNotFound e = do
-             hPutStrLn stderr "Could not parse mime types file."
+             hPutStrLn stderr $ "Could not parse mime types file.\n" ++ show e
              return mimeTypes
 
 checkListen :: String -> String
