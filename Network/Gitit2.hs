@@ -42,6 +42,8 @@ import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
 import Control.Exception (throw, handle, try)
 import Text.Highlighting.Kate
+import Data.Time (UTCTime, formatTime, getCurrentTime, addUTCTime)
+import Yesod.AtomFeed
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -170,6 +172,8 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_diff/#RevisionId/#RevisionId/*Page DiffR GET
 /_history/#Int/*Page HistoryR GET
 /_activity/#Int ActivityR GET
+/_atom AtomSiteR GET
+/_atom/*Page AtomPageR GET
 /*Page     ViewR GET
 |]
 
@@ -190,6 +194,7 @@ makeDefaultPage layout content = do
            Just _  -> StaticRoute ["css","print.css"] []
            Nothing -> StaticRoute ["css","custom.css"] []
     addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
+    atomLink (toMaster AtomSiteR) "Atom feed for the wiki"
     toWidget $ [lucius|input.hidden { display: none; } |]
     [whamlet|
     <div #doc3 .yui-t1>
@@ -229,7 +234,7 @@ makeDefaultPage layout content = do
                 <li><a href=@{toMaster $ RandomR}>_{MsgRandomPage}</a>
                 <li><a href=@{toMaster $ ActivityR 1}>_{MsgRecentActivity}</a>
                 <li><a href="">_{MsgUploadFile}</a></li>
-                <li><a href="" type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
+                <li><a href=@{toMaster AtomSiteR} type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                 <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
               <form method="post" action=@{searchRoute} id="searchform">
                <input type="text" name="patterns" id="patterns">
@@ -246,7 +251,7 @@ makeDefaultPage layout content = do
                   <li><a href=@{toMaster $ RawR page}>_{MsgRawPageSource}</a>
                   <li><a href="@{toMaster $ ViewR page}?print">_{MsgPrintableVersion}</a>
                   <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
-                  <li><a href="" type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
+                  <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                 <!-- TODO exports here -->
   |]
 
@@ -435,7 +440,8 @@ view mbrev page = do
                   let ct = maybe "application/octet-stream" id
                            $ M.lookup (drop 1 $ takeExtension path') mimeTypes
                   sendResponse (ct, toContent contents)
-   where layout tabs cont =
+   where layout tabs cont = do
+           toMaster <- getRouteToMaster
            makePage pageLayout{ pgName = Just page
                               , pgPageTools = True
                               , pgTabs = tabs
@@ -443,6 +449,8 @@ view mbrev page = do
                                                    then DiscussTab
                                                    else ViewTab } $
                     do setTitle $ toMarkup page
+                       atomLink (toMaster $ AtomPageR page)
+                          "Atom link for this page"
                        [whamlet|
                          <h1 .title>#{page}
                          $maybe rev <- mbrev
@@ -892,4 +900,58 @@ getActivityR start = do
            ^{revisionDetails rev}
      ^{pagination pageBackLink pageForwardLink}
     |]
+
+getAtomSiteR :: HasGitit master => GHandler Gitit master RepAtom
+getAtomSiteR = feed Nothing >>= atomFeed
+
+getAtomPageR :: HasGitit master => Page -> GHandler Gitit master RepAtom
+getAtomPageR page = feed (Just page) >>= atomFeed
+
+
+feed :: HasGitit master
+     => Maybe Page  -- page, or nothing for all
+     -> GHandler Gitit master (Feed (Route master))
+feed mbpage = do
+  let days = 14 -- TODO make this configurable
+  toMaster <- getRouteToMaster
+  mr <- getMessageRender
+  fs <- filestore <$> getYesodSub
+  now <- liftIO getCurrentTime
+  paths <- case mbpage of
+                Just p  -> (:[]) <$> pathForPage p
+                Nothing -> return []
+  let startTime = addUTCTime (fromIntegral $ -60 * 60 * 24 * days) now
+  revs <- liftIO $ history fs paths
+           TimeRange{timeFrom = Just startTime,timeTo = Nothing}
+           (Just 200) -- hard limit of 200 to conserve resources
+  let toEntry rev = do
+        let topage change = case change of
+                              Modified f -> ("",) <$> pageForPath f
+                              Deleted f  -> ("-",) <$> pageForPath f
+                              Added f    -> ("+",) <$> pageForPath f
+        firstpage <- case revChanges rev of
+                           []    -> error "feed - encountered empty changes"
+                           (c:_) -> snd <$> topage c
+        let toChangeDesc c = do
+             (mod, pg) <- topage c
+             return $ mod <> pageToText pg
+        changeDescrips <- mapM toChangeDesc $ revChanges rev
+        return FeedEntry{
+                   feedEntryLink    = toMaster $ RevisionR (revId rev) firstpage
+                 , feedEntryUpdated = revDateTime rev
+                 , feedEntryTitle   = T.intercalate ", " changeDescrips <> ": "
+                                      <> T.pack (revDescription rev) <> " (" <>
+                                      T.pack (authorName $ revAuthor rev) <> ")"
+                 , feedEntryContent = toHtml $ T.pack ""
+                 }
+  entries <- mapM toEntry [rev | rev <- revs, not (null $ revChanges rev) ]
+  return Feed{
+        feedTitle = mr $ maybe MsgSiteFeedTitle MsgPageFeedTitle mbpage
+      , feedLinkSelf = toMaster $ maybe AtomSiteR AtomPageR mbpage
+      , feedLinkHome = toMaster HomeR
+      , feedDescription = undefined -- only used for rss
+      , feedLanguage = undefined    -- only used for rss
+      , feedUpdated = now
+      , feedEntries = entries
+    }
 

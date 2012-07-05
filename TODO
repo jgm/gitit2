@@ -1,15 +1,14 @@
 Features to implement:
 
-_ activity
-_ user pages (linked from history)
+x atom feed (site)
+x atom feed (page)
 _ export
 _ file upload
-_ atom feed (site)
-_ atom feed (page)
 _ config file [started]
 _ categories
 _ site initialization
 _ caching
 _ cache expiration program?
 _ plugins/interface
+_ user pages (linked from history)
 _ user logins/accounts

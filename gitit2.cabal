@@ -67,6 +67,8 @@ library
                  , pandoc                        >= 1.9.3      && < 1.10
                  , highlighting-kate             >= 0.5.0.6    && < 0.6
                  , xss-sanitize                  >= 0.3.2      && < 0.4
+                 , yesod-newsfeed                >= 1.0        && < 1.1
+                 , time                          >= 1.1        && < 1.5
 
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
 
