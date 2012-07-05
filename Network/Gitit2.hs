@@ -268,7 +268,7 @@ makeDefaultPage layout content = do
                   <li><a href="@{toMaster $ ViewR page}?print">_{MsgPrintableVersion}</a>
                   <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
                   <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
-                <form #exportbox action=@{toMaster $ ExportR page}>
+                <form method="post" #exportbox action=@{toMaster $ ExportR page}>
                   <select name="format">
                     $forall f <- exportFormats
                       <option value=#{f}>#{f}
