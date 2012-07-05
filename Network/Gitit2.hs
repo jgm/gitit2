@@ -137,6 +137,16 @@ pageLayout = PageLayout{
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
 
+-- | Export formats.
+data ExportFormat = Man | ReST | LaTeX
+                    deriving (Show, Read, Eq)
+
+instance PathPiece ExportFormat where
+  toPathPiece     = T.pack . show
+  fromPathPiece x = case reads (T.unpack x) of
+                           [(t,"")] -> Just t
+                           _        -> Nothing
+
 -- | The master site containing a Gitit subsite must be an instance
 -- of this typeclass.
 -- TODO: replace the user functions with isAuthorized from Yesod typeclass?
@@ -174,6 +184,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_activity/#Int ActivityR GET
 /_atom AtomSiteR GET
 /_atom/*Page AtomPageR GET
+/_export/#ExportFormat/*Page ExportR POST
 /*Page     ViewR GET
 |]
 
@@ -905,7 +916,6 @@ getAtomSiteR = feed Nothing >>= atomFeed
 getAtomPageR :: HasGitit master => Page -> GHandler Gitit master RepAtom
 getAtomPageR page = feed (Just page) >>= atomFeed
 
-
 feed :: HasGitit master
      => Maybe Page  -- page, or nothing for all
      -> GHandler Gitit master (Feed (Route master))
@@ -952,4 +962,10 @@ feed mbpage = do
       , feedUpdated = now
       , feedEntries = entries
     }
+
+postExportR :: HasGitit master
+            => ExportFormat -> Page -> GHandler Gitit master (ContentType, Content)
+postExportR format page = do
+  -- TODO
+  sendResponse (typePlain, toContent $ show format)
 
