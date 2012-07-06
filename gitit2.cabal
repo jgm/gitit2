@@ -14,8 +14,21 @@ cabal-version:     >= 1.8
 build-type:        Simple
 homepage:          http://gitit.net
 data-files:        messages/en.msg
+                   config/settings.yaml
                    config/favicon.ico
                    config/robots.txt
+                   static/js/jquery-1.7.2.min.js
+                   static/js/jquery-ui-1.8.21.custom.min.js
+                   static/img/logo.png
+                   static/img/icons/feed.png
+                   static/img/icons/folder.png
+                   static/img/icons/page.png
+                   static/css/custom.css
+                   static/css/ie.css
+                   static/css/reset-fonts-grids.css
+                   static/css/hk-pyg.css
+                   static/css/print.css
+                   static/css/screen.css
 
 flag executable
   description:   Build the gitit executable.

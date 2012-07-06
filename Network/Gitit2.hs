@@ -20,8 +20,6 @@ import Control.Exception (catch)
 import qualified Data.Map as M
 import Yesod hiding (MsgDelete)
 import Yesod.Static
--- will look in config/robots.txt and config/favicon.ico
-import Yesod.Default.Handlers (getRobotsR, getFaviconR)
 import Language.Haskell.TH hiding (dyn)
 import Data.Ord (comparing)
 import Data.List (inits, find, sortBy)
@@ -45,6 +43,7 @@ import Control.Exception (throw, handle, try)
 import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
+import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
