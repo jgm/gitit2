@@ -137,12 +137,6 @@ pageLayout = PageLayout{
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
 
-exportFormats :: [(Text, Page -> Pandoc -> GHandler Gitit master (ContentType, Content))]
-exportFormats =
-  [ ("man", \pg doc -> sendResponse (typePlain,
-                    toContent $ writeMan defaultWriterOptions doc))
-  ]
-
 -- | The master site containing a Gitit subsite must be an instance
 -- of this typeclass.
 -- TODO: replace the user functions with isAuthorized from Yesod typeclass?
@@ -978,4 +972,11 @@ postExportR page = do
            case mbcont of
                 Nothing       -> fail "Could not get page contents"
                 Just (_,cont) -> contentsToPandoc cont >>= f page
+
+exportFormats :: [(Text, Page -> Pandoc -> GHandler Gitit master (ContentType, Content))]
+exportFormats =
+  [ ("man", \page doc ->
+       sendResponse (typePlain, toContent $ writeMan defaultWriterOptions doc))
+  ]
+
 
