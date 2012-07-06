@@ -6,7 +6,6 @@ import Yesod
 import Yesod.Static
 import Network.Wai.Handler.Warp
 import Data.FileStore
-import Data.Char
 import Data.Yaml
 import Control.Applicative
 import qualified Data.ByteString.Char8 as B
@@ -76,7 +75,7 @@ data Conf = Conf { cfg_port            :: Int
                  , cfg_wiki_path       :: FilePath
                  , cfg_static_dir      :: FilePath
                  , cfg_mime_types_file :: Maybe FilePath
-                 , cfg_html_math       :: String
+                 , cfg_use_mathjax     :: Bool
                  , cfg_feed_days       :: Int
                  }
 
@@ -101,7 +100,7 @@ parseConfig o = Conf
   <*> o .:? "wiki_path" .!= "wikidata"
   <*> o .:? "static_dir" .!= "static"
   <*> o .:? "mime_types_file"
-  <*> o .:? "html_math" .!= "mathml"
+  <*> o .:? "use_mathjax" .!= False
   <*> o .:? "feed_days" .!= 14
 
 err :: Int -> String -> IO a
@@ -124,12 +123,6 @@ main = do
   mimes <- case cfg_mime_types_file conf of
                 Nothing -> return mimeTypes
                 Just f  -> readMimeTypesFile f
-  math_method <- case map toLower (cfg_html_math conf) of
-                        "mathml"  -> return UseMathML
-                        "mathjax" -> return UseMathJax
-                        "rawtex"  -> return UseRawTeX
-                        _         -> err 5 $ "Unknown math method: " ++
-                                              cfg_html_math conf
 
   -- open the requested interface
   sock <- socket AF_INET Stream defaultProtocol
@@ -143,7 +136,7 @@ main = do
   runner =<< toWaiApp
       (Master (Gitit{ config    = GititConfig{
                                     mime_types = mimes
-                                  , html_math  = math_method
+                                  , use_mathjax = cfg_use_mathjax conf
                                   , feed_days  = cfg_feed_days conf
                                   }
                     , filestore = fs

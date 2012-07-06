@@ -64,11 +64,11 @@ instance Yesod Gitit
 -- | Configuration for a gitit wiki.
 data GititConfig = GititConfig{
        mime_types  :: M.Map String ContentType -- ^ Table of mime types
-     , html_math   :: HtmlMathMethod           -- ^ How to do math in html
-     , feed_days   :: Int                      -- ^ Days to be included in feed
+     , use_mathjax :: Bool                     -- ^ Link to mathjax script
+     , feed_days   :: Int                      -- ^ Days back for feed entries
      }
 
-data HtmlMathMethod = UseMathML | UseMathJax | UseRawTeX
+data HtmlMathMethod = UseMathML | UseMathJax | UsePlainMath
 
 -- | Path to a wiki page.  Page and page components can't begin with '_'.
 data Page = Page [Text] deriving (Show, Read, Eq)
@@ -432,7 +432,7 @@ view mbrev page = do
   mbcont <- getRawContents path mbrev
   case mbcont of
        Just (_,contents) -> do
-         htmlContents <- contentsToHtml contents
+         htmlContents <- contentsToPandoc contents >>= pageToHtml
          layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
        Nothing -> do
          path' <- pathForFile page
@@ -523,14 +523,14 @@ getRawContents path rev = do
               cont <- retrieve fs path rev
               return $ Just (revid, cont)
 
-contentsToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
-contentsToHtml contents =
-  writeHtml defaultWriterOptions{
+pageToHtml :: HasGitit master => Pandoc -> GHandler Gitit master Html
+pageToHtml doc = do
+  return $ writeHtml defaultWriterOptions{
                writerWrapText = False
              , writerHtml5 = True
              , writerHighlight = True
-             , writerHTMLMathMethod = MathJax $ T.unpack mathjax_url }
-      <$> contentsToPandoc contents
+             , writerHTMLMathMethod = MathML Nothing
+             } doc
 
 contentsToPandoc :: HasGitit master => ByteString -> GHandler Gitit master Pandoc
 contentsToPandoc contents = do
@@ -546,13 +546,13 @@ sourceToHtml path contents = do
         []    -> highlightAs "" $ toString contents
         (l:_) -> highlightAs l $ toString contents
 
--- TODO replace with something in configuration.
 mathjax_url :: Text
 mathjax_url = "https://d3eoax9i5htok0.cloudfront.net/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 
 toWikiPage :: HasGitit master => Html -> GWidget Gitit master ()
 toWikiPage rendered = do
-  addScriptRemote mathjax_url
+  cfg <- config <$> lift getYesodSub
+  when (use_mathjax cfg) $ addScriptRemote mathjax_url
   toWidget rendered
 
 postSearchR :: HasGitit master => GHandler Gitit master RepHtml
