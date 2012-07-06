@@ -2,12 +2,13 @@
     OverloadedStrings #-}
 import Network.Gitit2
 import Network.Socket hiding (Debug)
-import Network.URI
 import Yesod
 import Yesod.Static
 import Network.Wai.Handler.Warp
 import Data.FileStore
+import Data.Char
 import Data.Yaml
+import Control.Applicative
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
 import System.IO
@@ -70,11 +71,12 @@ mimeTypes = M.fromList
         ,("wav","application/x-wav")
         ,("hs","text/plain")]
 
-data Conf = Conf { port            :: Int
-                 , listen_address  :: String
-                 , wiki_path       :: FilePath
-                 , static_dir      :: FilePath
-                 , mime_types_file :: Maybe FilePath
+data Conf = Conf { cfg_port            :: Int
+                 , cfg_listen_address  :: String
+                 , cfg_wiki_path       :: FilePath
+                 , cfg_static_dir      :: FilePath
+                 , cfg_mime_types_file :: Maybe FilePath
+                 , cfg_html_math       :: String
                  }
 
 -- | Read a file associating mime types with extensions, and return a
@@ -88,56 +90,58 @@ readMimeTypesFile f = catch
      where go []     m = m  -- skip blank lines
            go (x:xs) m = foldr (\ext -> M.insert ext $ B.pack x) m xs
            handleMimeTypesFileNotFound e = do
-             hPutStrLn stderr $ "Could not parse mime types file.\n" ++ show e
+             warn $ "Could not parse mime types file.\n" ++ show e
              return mimeTypes
 
-checkListen :: String -> String
-checkListen l | isIPv6address l = l
-              | isIPv4address l = l
-              | otherwise       = error "Gitit.checkListen: Not a valid interface name"
-
 parseConfig :: Object -> Parser Conf
-parseConfig o = do
-  port' <- o .:? "port" .!= 3000
-  static_dir' <- o .:? "static_dir" .!= "static"
-  wiki_path' <- o .:? "wiki_path" .!= "wikidata"
-  mime_types_file' <- o .:? "mime_types_file"
-  listen_address' <- o .:? "listen_address" .!= "0.0.0.0"
-  return Conf{ port = port'
-             , listen_address = checkListen listen_address'
-             , wiki_path = wiki_path'
-             , static_dir = static_dir'
-             , mime_types_file = mime_types_file'
-             }
+parseConfig o = Conf
+  <$> o .:? "port" .!= 3000
+  <*> o .:? "listen_address" .!= "0.0.0.0"
+  <*> o .:? "wiki_path" .!= "wikidata"
+  <*> o .:? "static_dir" .!= "static"
+  <*> o .:? "mime_types_file"
+  <*> o .:? "html_math" .!= "mathml"
+
+err :: Int -> String -> IO a
+err code msg = do
+  hPutStrLn stderr msg
+  exitWith $ ExitFailure code
+  return undefined
+
+warn :: String -> IO ()
+warn msg = hPutStrLn stderr msg
 
 main :: IO ()
 main = do
   res <- decodeEither `fmap` B.readFile "config/settings.yaml"
   conf <- case res of
-             Left e  -> do
-               hPutStrLn stderr ("Error reading configuration file.\n" ++ e)
-               exitWith $ ExitFailure 3
-               return undefined
+             Left e  -> err 3 $ "Error reading configuration file.\n" ++ e
              Right x -> parseMonad parseConfig x
-  let fs = gitFileStore $ wiki_path conf
-  st <- staticDevel $ static_dir conf
-  mimes <- case mime_types_file conf of
+  let fs = gitFileStore $ cfg_wiki_path conf
+  st <- staticDevel $ cfg_static_dir conf
+  mimes <- case cfg_mime_types_file conf of
                 Nothing -> return mimeTypes
                 Just f  -> readMimeTypesFile f
-  let settings = defaultSettings{ settingsPort = port conf }
+  math_method <- case map toLower (cfg_html_math conf) of
+                        "mathml"  -> return UseMathML
+                        "mathjax" -> return UseMathJax
+                        "rawtex"  -> return UseRawTeX
+                        _         -> err 5 $ "Unknown math method: " ++
+                                              cfg_html_math conf
 
-  -- open tthe requested interface
+  -- open the requested interface
   sock <- socket AF_INET Stream defaultProtocol
   setSocketOption sock ReuseAddr 1
-  device <- inet_addr $ listen_address conf
-  bindSocket sock $ SockAddrInet (toEnum (port conf)) device
+  device <- inet_addr $ cfg_listen_address conf
+  bindSocket sock $ SockAddrInet (toEnum (cfg_port conf)) device
   listen sock 10
 
-  -- in future, could add option to use runSettingsSocket...
+  let settings = defaultSettings{ settingsPort = cfg_port conf }
   let runner = runSettingsSocket settings sock
   runner =<< toWaiApp
       (Master (Gitit{ config    = GititConfig{
-                                     mime_types = mimes
+                                    mime_types = mimes
+                                  , html_math  = math_method
                                   }
                     , filestore = fs
                     , getStatic = st

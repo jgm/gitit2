@@ -2,6 +2,7 @@
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              ScopedTypeVariables, TupleSections #-}
 module Network.Gitit2 ( GititConfig (..)
+                      , HtmlMathMethod (..)
                       , Page (..)
                       , HasGitit (..)
                       , Gitit (..)
@@ -62,8 +63,11 @@ instance Yesod Gitit
 
 -- | Configuration for a gitit wiki.
 data GititConfig = GititConfig{
-       mime_types :: M.Map String ContentType -- ^ Table of mime types
+       mime_types  :: M.Map String ContentType -- ^ Table of mime types
+     , html_math   :: HtmlMathMethod           -- ^ How to do math in html
      }
+
+data HtmlMathMethod = UseMathML | UseMathJax | UseRawTeX
 
 -- | Path to a wiki page.  Page and page components can't begin with '_'.
 data Page = Page [Text] deriving (Show, Read, Eq)
@@ -974,6 +978,11 @@ postExportR page = do
                 Nothing       -> fail "Could not get page contents"
                 Just (_,cont) -> contentsToPandoc cont >>= f page
 
+-- TODO:
+-- fix mime types
+-- handle math in html formats
+-- other slide show issues (e.g. dzslides core)
+-- add pdf, docx, odt, epub
 exportFormats :: [(Text, Page -> Pandoc -> GHandler Gitit master (ContentType, Content))]
 exportFormats =
   [ ("Groff man", basicExport "man" ".1" typePlain writeMan)
