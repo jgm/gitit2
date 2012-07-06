@@ -976,9 +976,35 @@ postExportR page = do
 
 exportFormats :: [(Text, Page -> Pandoc -> GHandler Gitit master (ContentType, Content))]
 exportFormats =
-  [ ("man", \page doc ->
-       sendResponse (typePlain, toContent $ writeMan defaultWriterOptions doc))
+  [ ("Groff man", basicExport "man" ".1" typePlain writeMan)
+  , ("reStructuredText", basicExport "rst" ".txt" typePlain writeRST)
+  , ("Markdown", basicExport "markdown" ".txt" typePlain writeMarkdown)
+  , ("Plain text", basicExport "plain" ".txt" typePlain writePlain)
+  , ("Org-mode", basicExport "org" ".org" typePlain writeOrg)
+  , ("Asciidoc", basicExport "asciidoc" ".txt" typePlain writeAsciiDoc)
+  , ("Mediawiki", basicExport "mediawiki" ".wiki" typePlain writeMediaWiki)
+  , ("LaTeX", basicExport "latex" ".tex" typePlain writeLaTeX)
+  , ("ConTeXt", basicExport "context" ".ctx" typePlain writeConTeXt)
+  , ("DocBook", basicExport "docbook" ".xml" typePlain writeDocbook)
+  , ("Texinfo", basicExport "texinfo" ".texi" typePlain writeTexinfo)
   ]
+
+basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> String)
+            -> Page -> Pandoc -> GHandler Gitit master (ContentType, Content)
+basicExport templ extension contentType writer = \page doc -> do
+  setFilename $ pageToText page <> extension
+  template' <- liftIO $ getDefaultTemplate Nothing templ
+  template <- case template' of
+                     Right t  -> return t
+                     Left e   -> throw e
+  -- TODO use (pandocUserData cfg) instead of Nothing
+  sendResponse (contentType, toContent
+   $ writer defaultWriterOptions{ writerTemplate = template
+                                , writerStandalone = True } doc)
+
+setFilename :: Text -> GHandler sub master ()
+setFilename fname = setHeader "Content-Disposition"
+                  $ "attachment; filename=\"" <> fname <> "\""
 
 getUploadR :: HasGitit master => GHandler Gitit master RepHtml
 getUploadR = undefined
