@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
-             ScopedTypeVariables, TupleSections #-}
+             ScopedTypeVariables, TupleSections, DeriveDataTypeable #-}
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
@@ -24,7 +24,7 @@ import Language.Haskell.TH hiding (dyn)
 import Data.Ord (comparing)
 import Data.List (inits, find, sortBy)
 import Data.FileStore as FS
-import Data.Char (toLower)
+import Data.Char (toLower, isSpace)
 import System.FilePath
 import Text.Pandoc
 import Text.Pandoc.Shared (stringify)
@@ -33,10 +33,11 @@ import Control.Monad (when, filterM, mplus)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as B
 import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
-import Data.Monoid (Monoid, mappend)
+import Data.Monoid (Monoid, mappend, mconcat)
 import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
 import Control.Exception (throw, handle, try)
@@ -44,6 +45,8 @@ import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
+import Data.Generics
+import Data.Yaml
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -137,6 +140,21 @@ pageLayout = PageLayout{
   , pgTabs           = []
   , pgSelectedTab    = ViewTab
   }
+
+data PageType = Markdown | RST | LaTeX | HTML | Textile
+                deriving (Read, Show, Eq, Typeable, Data)
+
+data WikiPage = WikiPage {
+    pageName        :: Text
+  , pageFormat      :: PageType
+  , pageLHS         :: Bool
+  , pageTOC         :: Bool
+  , pageTitle       :: [Inline]
+  , pageCategories  :: [Text]
+  , pageMetadata    :: [(Text, Text)]
+  , pageCacheable   :: Bool
+  , pageContent     :: [Block]
+} deriving (Read, Show, Typeable, Data)
 
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
@@ -531,9 +549,24 @@ pageToHtml doc = do
              , writerHTMLMathMethod = MathML Nothing
              } doc
 
+stripHeader :: [ByteString] -> (ByteString,ByteString)
+stripHeader (x:xs)
+  | isHeaderStart x = let (hs, bs) = break isHeaderEnd xs
+                      in  case bs of
+                             []     -> (B.unlines (x:xs), B.empty)
+                             (_:ys) -> (B.unlines hs, B.unlines ys)
+  | otherwise = (B.unlines (x:xs), B.empty)
+ where isHeaderStart z = ["---"] == B.words z
+       isHeaderEnd   z = ["..."] == B.words z
+
 contentsToPandoc :: HasGitit master => ByteString -> GHandler Gitit master Pandoc
 contentsToPandoc contents = do
-  let doc = readMarkdown defaultParserState{ stateSmart = True } $ toString contents
+  let (h,b) = stripHeader $ B.lines contents
+  let h' = mconcat $ B.toChunks h
+  let metadata :: Maybe (M.Map Text Value) = decode h'
+  let doc = readMarkdown defaultParserState{ stateSmart = True } $ toString b
+  -- TODO Integrate this into a WIkiPage object
+  -- change the functions to work on this rather than pandoc
   sanitizePandoc <$> addWikiLinks doc
 
 sourceToHtml :: HasGitit master
