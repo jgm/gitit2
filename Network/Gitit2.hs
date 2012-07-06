@@ -979,14 +979,28 @@ exportFormats =
   [ ("Groff man", basicExport "man" ".1" typePlain writeMan)
   , ("reStructuredText", basicExport "rst" ".txt" typePlain writeRST)
   , ("Markdown", basicExport "markdown" ".txt" typePlain writeMarkdown)
+  , ("Textile", basicExport "textile" ".textile" typePlain writeTextile)
   , ("Plain text", basicExport "plain" ".txt" typePlain writePlain)
   , ("Org-mode", basicExport "org" ".org" typePlain writeOrg)
   , ("Asciidoc", basicExport "asciidoc" ".txt" typePlain writeAsciiDoc)
   , ("Mediawiki", basicExport "mediawiki" ".wiki" typePlain writeMediaWiki)
+  , ("HTML", basicExport "html" ".html" typePlain writeHtmlString)
+  , ("HTML5", basicExport "html5" ".html" typePlain $ \opts ->
+              writeHtmlString opts{ writerHtml5 = True })
+  , ("S5", basicExport "s5" ".html" typePlain $ \opts ->
+              writeHtmlString opts{ writerSlideVariant = S5Slides })
+  , ("Slidy", basicExport "slidy" ".html" typePlain $ \opts ->
+              writeHtmlString opts{ writerSlideVariant = SlidySlides })
+  , ("DZSlides", basicExport "dzslides" ".html" typePlain $ \opts ->
+              writeHtmlString opts{ writerSlideVariant = DZSlides
+                            , writerHtml5 = True })
   , ("LaTeX", basicExport "latex" ".tex" typePlain writeLaTeX)
+  , ("Beamer", basicExport "beamer" ".tex" typePlain writeLaTeX)
   , ("ConTeXt", basicExport "context" ".ctx" typePlain writeConTeXt)
   , ("DocBook", basicExport "docbook" ".xml" typePlain writeDocbook)
+  , ("OpenDocument", basicExport "opendocument" ".xml" typePlain writeOpenDocument)
   , ("Texinfo", basicExport "texinfo" ".texi" typePlain writeTexinfo)
+  , ("RTF", basicExport "rtf" ".rtf" typePlain writeRTF)
   ]
 
 basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> String)
