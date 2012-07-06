@@ -77,6 +77,7 @@ data Conf = Conf { cfg_port            :: Int
                  , cfg_static_dir      :: FilePath
                  , cfg_mime_types_file :: Maybe FilePath
                  , cfg_html_math       :: String
+                 , cfg_feed_days       :: Int
                  }
 
 -- | Read a file associating mime types with extensions, and return a
@@ -101,6 +102,7 @@ parseConfig o = Conf
   <*> o .:? "static_dir" .!= "static"
   <*> o .:? "mime_types_file"
   <*> o .:? "html_math" .!= "mathml"
+  <*> o .:? "feed_days" .!= 14
 
 err :: Int -> String -> IO a
 err code msg = do
@@ -142,6 +144,7 @@ main = do
       (Master (Gitit{ config    = GititConfig{
                                     mime_types = mimes
                                   , html_math  = math_method
+                                  , feed_days  = cfg_feed_days conf
                                   }
                     , filestore = fs
                     , getStatic = st

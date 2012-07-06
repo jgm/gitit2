@@ -65,6 +65,7 @@ instance Yesod Gitit
 data GititConfig = GititConfig{
        mime_types  :: M.Map String ContentType -- ^ Table of mime types
      , html_math   :: HtmlMathMethod           -- ^ How to do math in html
+     , feed_days   :: Int                      -- ^ Days to be included in feed
      }
 
 data HtmlMathMethod = UseMathML | UseMathJax | UseRawTeX
@@ -922,7 +923,7 @@ feed :: HasGitit master
      => Maybe Page  -- page, or nothing for all
      -> GHandler Gitit master (Feed (Route master))
 feed mbpage = do
-  let days = 14 :: Int -- TODO make this configurable
+  days <- feed_days . config <$> getYesodSub
   toMaster <- getRouteToMaster
   mr <- getMessageRender
   fs <- filestore <$> getYesodSub
