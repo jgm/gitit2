@@ -5,6 +5,7 @@ x atom feed (page)
 _ export [started]
 _ file upload [started]
 _ config file [started]
+_ metadata [started]
 _ categories
 _ site initialization
 _ caching
