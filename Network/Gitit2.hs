@@ -169,6 +169,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_delete/*Page DeleteR GET POST
 /_search SearchR POST
 /_go GoR POST
+/_upload UploadR GET POST
 /_diff/#RevisionId/#RevisionId/*Page DiffR GET
 /_history/#Int/*Page HistoryR GET
 /_activity/#Int ActivityR GET
@@ -234,7 +235,7 @@ makeDefaultPage layout content = do
                 <li><a href="">_{MsgCategories}</a>
                 <li><a href=@{toMaster $ RandomR}>_{MsgRandomPage}</a>
                 <li><a href=@{toMaster $ ActivityR 1}>_{MsgRecentActivity}</a>
-                <li><a href="">_{MsgUploadFile}</a></li>
+                <li><a href=@{toMaster UploadR}>_{MsgUploadFile}</a></li>
                 <li><a href=@{toMaster AtomSiteR} type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                 <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
               <form method="post" action=@{searchRoute} id="searchform">
@@ -979,4 +980,9 @@ exportFormats =
        sendResponse (typePlain, toContent $ writeMan defaultWriterOptions doc))
   ]
 
+getUploadR :: HasGitit master => GHandler Gitit master RepHtml
+getUploadR = undefined
+
+postUploadR :: HasGitit master => GHandler Gitit master RepHtml
+postUploadR = undefined
 

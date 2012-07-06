@@ -3,7 +3,7 @@ Features to implement:
 x atom feed (site)
 x atom feed (page)
 _ export [started]
-_ file upload
+_ file upload [started]
 _ config file [started]
 _ categories
 _ site initialization
