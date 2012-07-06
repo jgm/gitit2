@@ -137,20 +137,11 @@ pageLayout = PageLayout{
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
 
--- | Export formats.
-data ExportFormat = Man | ReST | LaTeX
-                    deriving (Show, Read, Enum, Bounded, Eq)
-
-instance ToMarkup ExportFormat where
-  toMarkup = toMarkup . show
-
-exportFormats :: [ExportFormat]
-exportFormats = [minBound..maxBound]
-
-readExportFormat :: Monad  m => Text -> m ExportFormat
-readExportFormat f = case reads (T.unpack f) of
-                           ((x,""):_) -> return x
-                           _          -> fail "Could not read format"
+exportFormats :: [(Text, Page -> Pandoc -> GHandler Gitit master (ContentType, Content))]
+exportFormats =
+  [ ("man", \pg doc -> sendResponse (typePlain,
+                    toContent $ writeMan defaultWriterOptions doc))
+  ]
 
 -- | The master site containing a Gitit subsite must be an instance
 -- of this typeclass.
@@ -270,7 +261,7 @@ makeDefaultPage layout content = do
                   <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                 <form method="post" #exportbox action=@{toMaster $ ExportR page}>
                   <select name="format">
-                    $forall f <- exportFormats
+                    $forall (f,_) <- exportFormats
                       <option value=#{f}>#{f}
                   <input type="submit" id="export" name="export" value=_{MsgExport}>
   |]
@@ -441,7 +432,7 @@ view mbrev page = do
   mbcont <- getRawContents path mbrev
   case mbcont of
        Just (_,contents) -> do
-         htmlContents <- pageToHtml contents
+         htmlContents <- contentsToHtml contents
          layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
        Nothing -> do
          path' <- pathForFile page
@@ -532,16 +523,19 @@ getRawContents path rev = do
               cont <- retrieve fs path rev
               return $ Just (revid, cont)
 
-pageToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
-pageToHtml contents = do
+contentsToHtml :: HasGitit master => ByteString -> GHandler Gitit master Html
+contentsToHtml contents =
+  writeHtml defaultWriterOptions{
+               writerWrapText = False
+             , writerHtml5 = True
+             , writerHighlight = True
+             , writerHTMLMathMethod = MathJax $ T.unpack mathjax_url }
+      <$> contentsToPandoc contents
+
+contentsToPandoc :: HasGitit master => ByteString -> GHandler Gitit master Pandoc
+contentsToPandoc contents = do
   let doc = readMarkdown defaultParserState{ stateSmart = True } $ toString contents
-  doc' <- sanitizePandoc <$> addWikiLinks doc
-  let rendered = writeHtml defaultWriterOptions{
-                     writerWrapText = False
-                   , writerHtml5 = True
-                   , writerHighlight = True
-                   , writerHTMLMathMethod = MathJax $ T.unpack mathjax_url } doc'
-  return rendered
+  sanitizePandoc <$> addWikiLinks doc
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GHandler Gitit master Html
@@ -975,6 +969,13 @@ feed mbpage = do
 postExportR :: HasGitit master
             => Page -> GHandler Gitit master (ContentType, Content)
 postExportR page = do
-  format <- runInputPost (ireq textField "format") >>= readExportFormat
-  sendResponse (typePlain, toContent $ show (format :: ExportFormat))
+  format <- runInputPost (ireq textField "format")
+  case lookup format exportFormats of
+         Nothing -> fail "Unrecognized format"
+         Just f  -> do
+           path <- pathForPage page
+           mbcont <- getRawContents path Nothing
+           case mbcont of
+                Nothing       -> fail "Could not get page contents"
+                Just (_,cont) -> contentsToPandoc cont >>= f page
 
