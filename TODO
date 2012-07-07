@@ -1,5 +1,9 @@
 Features to implement:
 
+_ fix slowness:  culprit is the new call to latest in
+  getRawContents.  We should only call this when we
+  actually need it (as with gitit).
+
 x atom feed (site)
 x atom feed (page)
 _ export [started]
