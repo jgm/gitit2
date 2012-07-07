@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
-             ScopedTypeVariables, TupleSections, DeriveDataTypeable #-}
+             ScopedTypeVariables, TupleSections #-}
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
@@ -47,7 +47,6 @@ import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
--- import Data.Generics
 import Data.Yaml
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
