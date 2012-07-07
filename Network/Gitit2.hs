@@ -24,7 +24,7 @@ import Language.Haskell.TH hiding (dyn)
 import Data.Ord (comparing)
 import Data.List (inits, find, sortBy)
 import Data.FileStore as FS
-import Data.Char (toLower, isSpace)
+import Data.Char (toLower)
 import System.FilePath
 import Text.Pandoc
 import Text.Pandoc.Shared (stringify)
@@ -390,9 +390,9 @@ getRawR page = do
          path' <- pathForFile page
          mbcont' <- getRawContents path' Nothing
          case mbcont' of
-              Nothing  -> notFound
-              Just (_,cont) -> return $ RepPlain $ toContent cont
-       Just (_,cont) -> return $ RepPlain $ toContent cont
+              Nothing   -> notFound
+              Just cont -> return $ RepPlain $ toContent cont
+       Just cont -> return $ RepPlain $ toContent cont
 
 getDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getDeleteR page = do
@@ -448,7 +448,7 @@ view mbrev page = do
   path <- pathForPage page
   mbcont <- getRawContents path mbrev
   case mbcont of
-       Just (_,contents) -> do
+       Just contents -> do
          htmlContents <- contentsToPandoc contents >>= pageToHtml
          layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
        Nothing -> do
@@ -459,7 +459,7 @@ view mbrev page = do
               Nothing -> do
                  setMessageI (MsgNewPage page)
                  redirect (toMaster $ EditR page)
-              Just (_,contents)
+              Just contents
                | is_source -> do
                    htmlContents <- sourceToHtml path' contents
                    layout [ViewTab,HistoryTab] htmlContents
@@ -532,13 +532,11 @@ upDir toMaster fs = do
 getRawContents :: HasGitit master
                => FilePath
                -> Maybe RevisionId
-               -> GHandler Gitit master (Maybe (RevisionId, ByteString))
+               -> GHandler Gitit master (Maybe ByteString)
 getRawContents path rev = do
   fs <- filestore <$> getYesodSub
   liftIO $ handle (\e -> if e == FS.NotFound then return Nothing else throw e)
-         $ do revid <- latest fs path
-              cont <- retrieve fs path rev
-              return $ Just (revid, cont)
+         $ Just <$> retrieve fs path rev
 
 pageToHtml :: HasGitit master => Pandoc -> GHandler Gitit master Html
 pageToHtml doc = do
@@ -675,12 +673,16 @@ searchResults patterns = do
 getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getEditR page = do
   requireUser
+  fs <- filestore <$> getYesodSub
   path <- pathForPage page
   mbcont <- getRawContents path Nothing
   let contents = case mbcont of
-                       Nothing    -> ""
-                       Just (_,c) -> toString c
-  let mbrev = maybe Nothing (Just . fst) mbcont
+                       Nothing -> ""
+                       Just c  -> toString c
+  mbrev <- case mbcont of
+                 Nothing -> return Nothing
+                 Just _  -> pathForPage page >>= \f ->
+                              liftIO (Just <$> latest fs f)
   edit False contents mbrev page
 
 getRevertR :: HasGitit master
@@ -690,8 +692,8 @@ getRevertR rev page = do
   path <- pathForPage page
   mbcont <- getRawContents path (Just rev)
   case mbcont of
-       Nothing           -> notFound
-       Just (r,contents) -> edit True (toString contents) (Just r) page
+       Nothing       -> notFound
+       Just contents -> edit True (toString contents) (Just rev) page
 
 edit :: HasGitit master
      => Bool               -- revert?
@@ -1008,8 +1010,8 @@ postExportR page = do
            path <- pathForPage page
            mbcont <- getRawContents path Nothing
            case mbcont of
-                Nothing       -> fail "Could not get page contents"
-                Just (_,cont) -> contentsToPandoc cont >>= f page
+                Nothing   -> fail "Could not get page contents"
+                Just cont -> contentsToPandoc cont >>= f page
 
 -- TODO:
 -- fix mime types
