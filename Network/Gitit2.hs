@@ -4,6 +4,8 @@
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
+                      , PageFormat (..)
+                      , readPageFormat
                       , HasGitit (..)
                       , Gitit (..)
                       , GititUser (..)
@@ -65,9 +67,10 @@ instance Yesod Gitit
 
 -- | Configuration for a gitit wiki.
 data GititConfig = GititConfig{
-       mime_types  :: M.Map String ContentType -- ^ Table of mime types
-     , use_mathjax :: Bool                     -- ^ Link to mathjax script
-     , feed_days   :: Int                      -- ^ Days back for feed entries
+       mime_types     :: M.Map String ContentType -- ^ Table of mime types
+     , default_format :: PageFormat               -- ^ Default format for wiki pages
+     , use_mathjax    :: Bool                     -- ^ Link to mathjax script
+     , feed_days      :: Int                      -- ^ Days back for feed entries
      }
 
 data HtmlMathMethod = UseMathML | UseMathJax | UsePlainMath
@@ -141,12 +144,21 @@ pageLayout = PageLayout{
   , pgSelectedTab    = ViewTab
   }
 
-data PageType = Markdown | RST | LaTeX | HTML | Textile
-                deriving (Read, Show, Eq)
+data PageFormat = Markdown | RST | LaTeX | HTML | Textile
+                  deriving (Read, Show, Eq)
+
+readPageFormat :: Text -> Maybe PageFormat
+readPageFormat s = case T.toLower s of
+                     "markdown"  -> Just Markdown
+                     "textile"   -> Just Textile
+                     "latex"     -> Just LaTeX
+                     "html"      -> Just HTML
+                     "rst"       -> Just RST
+                     _           -> Nothing
 
 data WikiPage = WikiPage {
     wpName        :: Text
-  , wpFormat      :: PageType
+  , wpFormat      :: PageFormat
   , wpLHS         :: Bool
   , wpTOC         :: Bool
   , wpTitle       :: [Inline]
@@ -559,14 +571,26 @@ stripHeader (x:xs)
 
 contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GHandler Gitit master WikiPage
 contentsToWikiPage page contents = do
+  conf <- config <$> getYesodSub
   let (h,b) = stripHeader $ B.lines contents
   let h' = mconcat $ B.toChunks h
   let metadata :: (M.Map Text Value) = maybe M.empty id $ decode h'
-  let doc = readMarkdown defaultParserState{ stateSmart = True } $ toString b
+  let def = defaultParserState{ stateSmart = True }
+  let formatStr = case M.lookup "format" metadata of
+                         Just (String s) -> s
+                         _               -> ""
+  let format = maybe (default_format conf) id $ readPageFormat formatStr
+  let reader = case format of
+                     Markdown -> readMarkdown def
+                     Textile  -> readTextile def
+                     LaTeX    -> readLaTeX def
+                     RST      -> readRST def
+                     HTML     -> readHtml def
+  let doc = reader $ toString b
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks doc
   return $ WikiPage {
              wpName        = pageToText page
-           , wpFormat      = Markdown -- TODO
+           , wpFormat      = format
            , wpLHS         = False    -- TODO
            , wpTOC         = False    -- TODO
            , wpTitle       = [Str $ T.unpack $ pageToText page]

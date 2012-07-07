@@ -12,6 +12,8 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
 import System.IO
 import System.Exit
+import Data.Text (Text)
+import qualified Data.Text as T
 
 data Master = Master { getGitit :: Gitit }
 mkYesod "Master" [parseRoutes|
@@ -73,6 +75,7 @@ mimeTypes = M.fromList
 data Conf = Conf { cfg_port            :: Int
                  , cfg_listen_address  :: String
                  , cfg_wiki_path       :: FilePath
+                 , cfg_default_format  :: Text
                  , cfg_static_dir      :: FilePath
                  , cfg_mime_types_file :: Maybe FilePath
                  , cfg_use_mathjax     :: Bool
@@ -98,6 +101,7 @@ parseConfig o = Conf
   <$> o .:? "port" .!= 3000
   <*> o .:? "listen_address" .!= "0.0.0.0"
   <*> o .:? "wiki_path" .!= "wikidata"
+  <*> o .:? "default_format" .!= "markdown"
   <*> o .:? "static_dir" .!= "static"
   <*> o .:? "mime_types_file"
   <*> o .:? "use_mathjax" .!= False
@@ -131,11 +135,16 @@ main = do
   bindSocket sock $ SockAddrInet (toEnum (cfg_port conf)) device
   listen sock 10
 
+  format <- case readPageFormat (cfg_default_format conf) of
+                  Just f  -> return f
+                  Nothing -> err 11 $ "Unknown default format: " ++
+                                   T.unpack (cfg_default_format conf)
   let settings = defaultSettings{ settingsPort = cfg_port conf }
   let runner = runSettingsSocket settings sock
   runner =<< toWaiApp
       (Master (Gitit{ config    = GititConfig{
                                     mime_types = mimes
+                                  , default_format = format
                                   , use_mathjax = cfg_use_mathjax conf
                                   , feed_days  = cfg_feed_days conf
                                   }
