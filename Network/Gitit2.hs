@@ -45,7 +45,7 @@ import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
-import Data.Generics
+-- import Data.Generics
 import Data.Yaml
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
@@ -142,19 +142,19 @@ pageLayout = PageLayout{
   }
 
 data PageType = Markdown | RST | LaTeX | HTML | Textile
-                deriving (Read, Show, Eq, Typeable, Data)
+                deriving (Read, Show, Eq)
 
 data WikiPage = WikiPage {
-    pageName        :: Text
-  , pageFormat      :: PageType
-  , pageLHS         :: Bool
-  , pageTOC         :: Bool
-  , pageTitle       :: [Inline]
-  , pageCategories  :: [Text]
-  , pageMetadata    :: [(Text, Text)]
-  , pageCacheable   :: Bool
-  , pageContent     :: [Block]
-} deriving (Read, Show, Typeable, Data)
+    wpName        :: Text
+  , wpFormat      :: PageType
+  , wpLHS         :: Bool
+  , wpTOC         :: Bool
+  , wpTitle       :: [Inline]
+  , wpCategories  :: [Text]
+  , wpMetadata    :: M.Map Text Value
+  , wpCacheable   :: Bool
+  , wpContent     :: [Block]
+} deriving (Show)
 
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
@@ -449,7 +449,7 @@ view mbrev page = do
   mbcont <- getRawContents path mbrev
   case mbcont of
        Just contents -> do
-         htmlContents <- contentsToPandoc contents >>= pageToHtml
+         htmlContents <- contentsToWikiPage page contents >>= pageToHtml
          layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
        Nothing -> do
          path' <- pathForFile page
@@ -538,14 +538,14 @@ getRawContents path rev = do
   liftIO $ handle (\e -> if e == FS.NotFound then return Nothing else throw e)
          $ Just <$> retrieve fs path rev
 
-pageToHtml :: HasGitit master => Pandoc -> GHandler Gitit master Html
-pageToHtml doc = do
+pageToHtml :: HasGitit master => WikiPage -> GHandler Gitit master Html
+pageToHtml wikiPage = do
   return $ writeHtml defaultWriterOptions{
                writerWrapText = False
              , writerHtml5 = True
              , writerHighlight = True
              , writerHTMLMathMethod = MathML Nothing
-             } doc
+             } $ Pandoc (Meta [] [] []) (wpContent wikiPage)
 
 stripHeader :: [ByteString] -> (ByteString,ByteString)
 stripHeader (x:xs)
@@ -553,19 +553,28 @@ stripHeader (x:xs)
                       in  case bs of
                              []     -> (B.unlines (x:xs), B.empty)
                              (_:ys) -> (B.unlines hs, B.unlines ys)
-  | otherwise = (B.unlines (x:xs), B.empty)
+  | otherwise = (B.empty, B.unlines (x:xs))
  where isHeaderStart z = ["---"] == B.words z
        isHeaderEnd   z = ["..."] == B.words z
 
-contentsToPandoc :: HasGitit master => ByteString -> GHandler Gitit master Pandoc
-contentsToPandoc contents = do
+contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GHandler Gitit master WikiPage
+contentsToWikiPage page contents = do
   let (h,b) = stripHeader $ B.lines contents
   let h' = mconcat $ B.toChunks h
-  let metadata :: Maybe (M.Map Text Value) = decode h'
+  let metadata :: (M.Map Text Value) = maybe M.empty id $ decode h'
   let doc = readMarkdown defaultParserState{ stateSmart = True } $ toString b
-  -- TODO Integrate this into a WIkiPage object
-  -- change the functions to work on this rather than pandoc
-  sanitizePandoc <$> addWikiLinks doc
+  Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks doc
+  return $ WikiPage {
+             wpName        = pageToText page
+           , wpFormat      = Markdown -- TODO
+           , wpLHS         = False    -- TODO
+           , wpTOC         = False    -- TODO
+           , wpTitle       = [Str $ T.unpack $ pageToText page]
+           , wpCategories  = []
+           , wpMetadata    = metadata
+           , wpCacheable   = True     -- TODO
+           , wpContent     = blocks
+         }
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GHandler Gitit master Html
@@ -1011,14 +1020,14 @@ postExportR page = do
            mbcont <- getRawContents path Nothing
            case mbcont of
                 Nothing   -> fail "Could not get page contents"
-                Just cont -> contentsToPandoc cont >>= f page
+                Just cont -> contentsToWikiPage page cont >>= f
 
 -- TODO:
 -- fix mime types
 -- handle math in html formats
 -- other slide show issues (e.g. dzslides core)
 -- add pdf, docx, odt, epub
-exportFormats :: [(Text, Page -> Pandoc -> GHandler Gitit master (ContentType, Content))]
+exportFormats :: [(Text, WikiPage -> GHandler Gitit master (ContentType, Content))]
 exportFormats =
   [ ("Groff man", basicExport "man" ".1" typePlain writeMan)
   , ("reStructuredText", basicExport "rst" ".txt" typePlain writeRST)
@@ -1048,9 +1057,9 @@ exportFormats =
   ]
 
 basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> String)
-            -> Page -> Pandoc -> GHandler Gitit master (ContentType, Content)
-basicExport templ extension contentType writer = \page doc -> do
-  setFilename $ pageToText page <> extension
+            -> WikiPage -> GHandler Gitit master (ContentType, Content)
+basicExport templ extension contentType writer = \wikiPage -> do
+  setFilename $ wpName wikiPage <> extension
   template' <- liftIO $ getDefaultTemplate Nothing templ
   template <- case template' of
                      Right t  -> return t
@@ -1058,7 +1067,8 @@ basicExport templ extension contentType writer = \page doc -> do
   -- TODO use (pandocUserData cfg) instead of Nothing
   sendResponse (contentType, toContent
    $ writer defaultWriterOptions{ writerTemplate = template
-                                , writerStandalone = True } doc)
+                                , writerStandalone = True }
+   $ Pandoc (Meta [] [] []) $ wpContent wikiPage)
 
 setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"
