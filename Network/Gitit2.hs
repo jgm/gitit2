@@ -143,22 +143,25 @@ pageLayout = PageLayout{
   , pgSelectedTab    = ViewTab
   }
 
-data PageFormat = Markdown | RST | LaTeX | HTML | Textile
+-- | The Boolean is True for literate Haskell.
+data PageFormat = Markdown Bool | RST Bool | LaTeX Bool | HTML Bool | Textile Bool
                   deriving (Read, Show, Eq)
 
 readPageFormat :: Text -> Maybe PageFormat
-readPageFormat s = case T.toLower s of
-                     "markdown"  -> Just Markdown
-                     "textile"   -> Just Textile
-                     "latex"     -> Just LaTeX
-                     "html"      -> Just HTML
-                     "rst"       -> Just RST
-                     _           -> Nothing
+readPageFormat s =
+  case T.toLower s' of
+       "markdown"  -> Just $ Markdown lhs
+       "textile"   -> Just $ Textile lhs
+       "latex"     -> Just $ LaTeX lhs
+       "html"      -> Just $ HTML lhs
+       "rst"       -> Just $ RST lhs
+       _           -> Nothing
+ where (s',rest) = T.break (=='+') s
+       lhs = rest == "+lhs"
 
 data WikiPage = WikiPage {
     wpName        :: Text
   , wpFormat      :: PageFormat
-  , wpLHS         :: Bool
   , wpTOC         :: Bool
   , wpTitle       :: [Inline]
   , wpCategories  :: [Text]
@@ -580,22 +583,27 @@ contentsToWikiPage page contents = do
                          _               -> ""
   let format = maybe (default_format conf) id $ readPageFormat formatStr
   let reader = case format of
-                     Markdown -> readMarkdown def
-                     Textile  -> readTextile def
-                     LaTeX    -> readLaTeX def
-                     RST      -> readRST def
-                     HTML     -> readHtml def
+                     Markdown lhs -> readMarkdown def{stateLiterateHaskell = lhs}
+                     Textile  lhs -> readTextile def{stateLiterateHaskell = lhs}
+                     LaTeX    lhs -> readLaTeX def{stateLiterateHaskell = lhs}
+                     RST      lhs -> readRST def{stateLiterateHaskell = lhs}
+                     HTML     lhs -> readHtml def{stateLiterateHaskell = lhs}
+  let fromBool (Bool t) = t
+      fromBool _        = False
+  let toc = maybe False fromBool (M.lookup "toc" metadata)
+  let categories = case M.lookup "categories" metadata of
+                        Just (String t) -> T.words $ T.replace "," " " t
+                        _               -> []
   let doc = reader $ toString b
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks doc
   return $ WikiPage {
              wpName        = pageToText page
            , wpFormat      = format
-           , wpLHS         = False    -- TODO
-           , wpTOC         = False    -- TODO
+           , wpTOC         = toc
            , wpTitle       = [Str $ T.unpack $ pageToText page]
-           , wpCategories  = []
+           , wpCategories  = categories
            , wpMetadata    = metadata
-           , wpCacheable   = True     -- TODO
+           , wpCacheable   = True
            , wpContent     = blocks
          }
 
