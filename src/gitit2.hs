@@ -81,6 +81,7 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_use_mathjax      :: Bool
                  , cfg_feed_days        :: Int
                  , cfg_pandoc_user_data :: Maybe FilePath
+                 , cfg_use_cache        :: Bool
                  , cfg_cache_dir        :: FilePath
                  }
 
@@ -109,6 +110,7 @@ parseConfig o = Conf
   <*> o .:? "use_mathjax" .!= False
   <*> o .:? "feed_days" .!= 14
   <*> o .:? "pandoc_user_data"
+  <*> o .:? "use_cache" .!= False
   <*> o .:? "cache_dir" .!= "cache"
 
 err :: Int -> String -> IO a
@@ -153,6 +155,7 @@ main = do
                                   , use_mathjax = cfg_use_mathjax conf
                                   , feed_days  = cfg_feed_days conf
                                   , pandoc_user_data = cfg_pandoc_user_data conf
+                                  , use_cache = cfg_use_cache conf
                                   , cache_dir = cfg_cache_dir conf
                                   }
                     , filestore = fs

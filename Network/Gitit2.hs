@@ -77,6 +77,7 @@ data GititConfig = GititConfig{
      , use_mathjax      :: Bool                     -- ^ Link to mathjax script
      , feed_days        :: Int                      -- ^ Days back for feed entries
      , pandoc_user_data :: Maybe FilePath           -- ^ Pandoc userdata directory
+     , use_cache        :: Bool                     -- ^ Cache pages and files
      , cache_dir        :: FilePath                 -- ^ Path to cache
      }
 
