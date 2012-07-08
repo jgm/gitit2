@@ -1,12 +1,24 @@
 Features to implement:
 
-_ export [started]
-_ file upload [started]
+_ export:
+  _ populate variables as needed for dzslides, others?
+  _ add config variable for pandoc user data directory, and use
+  _ apply standalone to html output
+_ file upload:
+  _ fill in getUploadR
+  _ fill in postUploadR
 _ config file [started]
-_ categories
+_ categories:
+  _ show categories in view
+  _ handlers for individual categories
+  _ handler for category index
 _ site initialization
+  _ explicit 'init' command? or wizard?
 _ caching
+  _ can we use old technique, with cache directory?
 _ cache expiration program?
 _ plugins/interface
-_ user pages (linked from history)
+  _ lift the transformation to a transform on WikiPage
 _ user logins/accounts
+  _ user pages (linked from history)
+
