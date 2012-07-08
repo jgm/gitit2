@@ -583,12 +583,12 @@ contentsToWikiPage page contents = do
                          Just (String s) -> s
                          _               -> ""
   let format = maybe (default_format conf) id $ readPageFormat formatStr
-  let reader = case format of
-                     Markdown lhs -> readMarkdown def{stateLiterateHaskell = lhs}
-                     Textile  lhs -> readTextile def{stateLiterateHaskell = lhs}
-                     LaTeX    lhs -> readLaTeX def{stateLiterateHaskell = lhs}
-                     RST      lhs -> readRST def{stateLiterateHaskell = lhs}
-                     HTML     lhs -> readHtml def{stateLiterateHaskell = lhs}
+  let (reader, lhs) = case format of
+                        Markdown l -> (readMarkdown def{stateLiterateHaskell = l},l)
+                        Textile  l -> (readTextile def{stateLiterateHaskell = l},l)
+                        LaTeX    l -> (readLaTeX def{stateLiterateHaskell = l},l)
+                        RST      l -> (readRST def{stateLiterateHaskell = l},l)
+                        HTML     l -> (readHtml def{stateLiterateHaskell = l},l)
   let fromBool (Bool t) = t
       fromBool _        = False
   let toc = maybe False fromBool (M.lookup "toc" metadata)
@@ -1070,23 +1070,23 @@ exportFormats =
   , ("Org-mode", basicExport "org" ".org" typePlain writeOrg)
   , ("Asciidoc", basicExport "asciidoc" ".txt" typePlain writeAsciiDoc)
   , ("Mediawiki", basicExport "mediawiki" ".wiki" typePlain writeMediaWiki)
-  , ("HTML", basicExport "html" ".html" typePlain writeHtmlString)
-  , ("HTML5", basicExport "html5" ".html" typePlain $ \opts ->
+  , ("HTML", basicExport "html" ".html" typeHtml writeHtmlString)
+  , ("HTML5", basicExport "html5" ".html" typeHtml $ \opts ->
               writeHtmlString opts{ writerHtml5 = True })
-  , ("S5", basicExport "s5" ".html" typePlain $ \opts ->
+  , ("S5", basicExport "s5" ".html" typeHtml $ \opts ->
               writeHtmlString opts{ writerSlideVariant = S5Slides })
-  , ("Slidy", basicExport "slidy" ".html" typePlain $ \opts ->
+  , ("Slidy", basicExport "slidy" ".html" typeHtml $ \opts ->
               writeHtmlString opts{ writerSlideVariant = SlidySlides })
-  , ("DZSlides", basicExport "dzslides" ".html" typePlain $ \opts ->
+  , ("DZSlides", basicExport "dzslides" ".html" typeHtml $ \opts ->
               writeHtmlString opts{ writerSlideVariant = DZSlides
                             , writerHtml5 = True })
-  , ("LaTeX", basicExport "latex" ".tex" typePlain writeLaTeX)
-  , ("Beamer", basicExport "beamer" ".tex" typePlain writeLaTeX)
-  , ("ConTeXt", basicExport "context" ".ctx" typePlain writeConTeXt)
-  , ("DocBook", basicExport "docbook" ".xml" typePlain writeDocbook)
-  , ("OpenDocument", basicExport "opendocument" ".xml" typePlain writeOpenDocument)
-  , ("Texinfo", basicExport "texinfo" ".texi" typePlain writeTexinfo)
-  , ("RTF", basicExport "rtf" ".rtf" typePlain writeRTF)
+  , ("LaTeX", basicExport "latex" ".tex" "application/x-latex" writeLaTeX)
+  , ("Beamer", basicExport "beamer" ".tex" "application/x-latex" writeLaTeX)
+  , ("ConTeXt", basicExport "context" ".tex" "application/x-context" writeConTeXt)
+  , ("DocBook", basicExport "docbook" ".xml" "application/docbook+xml" writeDocbook)
+  , ("OpenDocument", basicExport "opendocument" ".xml" "application/vnd.oasis.opendocument.text" writeOpenDocument)
+  , ("Texinfo", basicExport "texinfo" ".texi" "application/x-texinfo" writeTexinfo)
+  , ("RTF", basicExport "rtf" ".rtf" "application/rtf" writeRTF)
   ]
 
 basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> String)
@@ -1100,7 +1100,10 @@ basicExport templ extension contentType writer = \wikiPage -> do
   -- TODO use (pandocUserData cfg) instead of Nothing
   sendResponse (contentType, toContent
    $ writer defaultWriterOptions{ writerTemplate = template
-                                , writerStandalone = True }
+                                , writerStandalone = True
+                                , writerLiterateHaskell = wpLHS wikiPage
+                                , writerTableOfContents = wpTOC wikiPage
+                                , writerHTMLMathMethod = MathML Nothing }
    $ Pandoc (Meta [] [] []) $ wpContent wikiPage)
 
 setFilename :: Text -> GHandler sub master ()
