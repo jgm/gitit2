@@ -24,12 +24,12 @@ import Yesod hiding (MsgDelete)
 import Yesod.Static
 import Language.Haskell.TH hiding (dyn)
 import Data.Ord (comparing)
-import Data.List (inits, find, sortBy)
+import Data.List (inits, find, sortBy, isPrefixOf)
 import Data.FileStore as FS
 import Data.Char (toLower)
 import System.FilePath
 import Text.Pandoc
-import Text.Pandoc.Shared (stringify, inDirectory)
+import Text.Pandoc.Shared (stringify, inDirectory, readDataFile)
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
@@ -1109,13 +1109,22 @@ basicExport templ extension contentType writer = \wikiPage -> do
       metadataToVar (k, Number v) = Just (T.unpack k, show v)
       metadataToVar _             = Nothing
   let vars = mapMaybe metadataToVar $ M.toList $ wpMetadata wikiPage
+  dzcore <- if templ == "dzslides"
+                then liftIO $ do
+                  dztempl <- readDataFile (pandoc_user_data conf)
+                             $ "dzslides" </> "template.html"
+                  return $ unlines
+                      $ dropWhile (not . isPrefixOf "<!-- {{{{ dzslides core")
+                      $ lines dztempl
+                else return ""
   let rendered =  writer defaultWriterOptions{
                                   writerTemplate = template
+                                , writerSourceDirectory = wiki_path conf
                                 , writerStandalone = True
                                 , writerLiterateHaskell = wpLHS wikiPage
                                 , writerTableOfContents = wpTOC wikiPage
                                 , writerHTMLMathMethod = MathML Nothing
-                                , writerVariables = vars }
+                                , writerVariables = ("dzslides-core",dzcore):vars }
         $ Pandoc (Meta (wpTitle wikiPage) [] []) $ wpContent wikiPage
   rendered' <- if contentType == typeHtml
                   then liftIO $ inDirectory (wiki_path conf)
