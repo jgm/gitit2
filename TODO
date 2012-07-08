@@ -1,7 +1,7 @@
 Features to implement:
 
 _ caching
-  _ add _expire/Page
+  x add _expire/Page
   _ hook this up to ctrl-R with javascript expire.js
   _ caching for exports (special subdir under page, automatically
     expired when page is)

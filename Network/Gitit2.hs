@@ -43,7 +43,6 @@ import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
 import Blaze.ByteString.Builder (toByteStringIO)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
-import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import Data.Monoid (Monoid, mappend, mconcat)
 import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
@@ -223,6 +222,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_atom AtomSiteR GET
 /_atom/*Page AtomPageR GET
 /_export/*Page ExportR POST
+/_expire/*Page ExpireR GET
 /*Page     ViewR GET
 |]
 
@@ -1174,6 +1174,19 @@ postUploadR = undefined
 ----------
 -- Caching
 ----------
+
+getExpireR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+getExpireR page = do
+  useCache <- use_cache . config <$> getYesodSub
+  if useCache
+     then do
+       path <- pathForPage page
+       path' <- pathForFile page
+       expireCache path
+       expireCache path'
+     else return ()
+  toMaster <- getRouteToMaster
+  redirect $ toMaster $ ViewR page
 
 caching :: FilePath -> GHandler Gitit master RepHtml -> GHandler Gitit master RepHtml
 caching path handler = do
