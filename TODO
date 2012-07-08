@@ -20,4 +20,5 @@ _ plugins/interface
   _ lift the transformation to a transform on WikiPage
 _ user logins/accounts
   _ user pages (linked from history)
+_ documentation
 
