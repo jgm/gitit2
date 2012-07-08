@@ -4,6 +4,7 @@ _ export:
   _ populate variables as needed for dzslides, others?
   _ add config variable for pandoc user data directory, and use
   _ apply standalone to html output
+  _ exporters for EPUB, PDF, DOCX, ODT
 _ file upload:
   _ fill in getUploadR
   _ fill in postUploadR
