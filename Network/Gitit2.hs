@@ -222,7 +222,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_atom AtomSiteR GET
 /_atom/*Page AtomPageR GET
 /_export/*Page ExportR POST
-/_expire/*Page ExpireR GET
+/_expire/*Page ExpireR POST
 /*Page     ViewR GET
 |]
 
@@ -522,6 +522,14 @@ view mbrev page = do
                                                    then DiscussTab
                                                    else ViewTab } $
                     do setTitle $ toMarkup page
+                       toWidget [julius|
+                                   $(document).keypress(function(event) {
+                                       if (event.which == 18) {
+                                          $.post("@{toMaster $ ExpireR page}");
+                                          window.location.reload(true);
+                                          };
+                                       });
+                                |]
                        atomLink (toMaster $ AtomPageR page)
                           "Atom link for this page"
                        [whamlet|
@@ -1175,8 +1183,8 @@ postUploadR = undefined
 -- Caching
 ----------
 
-getExpireR :: HasGitit master => Page -> GHandler Gitit master RepHtml
-getExpireR page = do
+postExpireR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+postExpireR page = do
   useCache <- use_cache . config <$> getYesodSub
   if useCache
      then do

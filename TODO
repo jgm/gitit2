@@ -2,10 +2,11 @@ Features to implement:
 
 _ caching
   x add _expire/Page
-  _ hook this up to ctrl-R with javascript expire.js
+  x hook this up to ctrl-R with javascript expire.js
   _ caching for exports (special subdir under page, automatically
     expired when page is)
   _ caching for atom feeds
+_ preview in edit?
 _ file upload:
   _ fill in getUploadR
   _ fill in postUploadR
