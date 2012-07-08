@@ -1152,11 +1152,11 @@ postUploadR = undefined
 ----------
 
 cacheContents :: FilePath -> BS.ByteString -> GHandler Gitit master ()
-cacheContents = undefined
+cacheContents path contents = undefined
 
 lookupCache :: FilePath -> GHandler Gitit master (Maybe (ClockTime, BS.ByteString))
-lookupCache = undefined
+lookupCache path = undefined
 
 expireCache :: FilePath -> GHandler Gitit master ()
-expireCache = undefined
+expireCache path = undefined
 
