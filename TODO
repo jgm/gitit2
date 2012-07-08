@@ -19,9 +19,14 @@ _ categories:
 _ plugins/interface
   _ lift the transformation to a transform on WikiPage
 _ config file [started]
+  _ make Front Page, Help configurable
+  _ implement page locking as in gitit
+  _ command-line option to specify config file? (but what about rest of config dir?)
 _ site initialization
   _ explicit 'init' command? or wizard?
 _ user logins/accounts
   _ user pages (linked from history)
 _ documentation
+  _ README
+  _ man page produced from README
 
