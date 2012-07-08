@@ -163,6 +163,7 @@ data WikiPage = WikiPage {
     wpName        :: Text
   , wpFormat      :: PageFormat
   , wpTOC         :: Bool
+  , wpLHS         :: Bool
   , wpTitle       :: [Inline]
   , wpCategories  :: [Text]
   , wpMetadata    :: M.Map Text Value
@@ -600,6 +601,7 @@ contentsToWikiPage page contents = do
              wpName        = pageToText page
            , wpFormat      = format
            , wpTOC         = toc
+           , wpLHS         = lhs
            , wpTitle       = [Str $ T.unpack $ pageToText page]
            , wpCategories  = categories
            , wpMetadata    = metadata
