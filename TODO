@@ -13,8 +13,9 @@ _ categories:
 _ site initialization
   _ explicit 'init' command? or wizard?
 _ caching
-  _ can we use old technique, with cache directory?
-_ cache expiration program?
+  _ need to provide an external way to expire cache, a program e.g.
+    (hook to Ctrl-R as before?)
+  _ caching for atom feeds
 _ plugins/interface
   _ lift the transformation to a transform on WikiPage
 _ user logins/accounts
