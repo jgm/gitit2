@@ -5,3 +5,5 @@ default_format: markdown
 listen_address: 127.0.0.1
 use_mathjax: true
 feed_days: 14
+use_cache: true
+cache_dir: cache

@@ -38,10 +38,10 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as B
-import qualified Data.ByteString as BS
 import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
+import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import Data.Monoid (Monoid, mappend, mconcat)
 import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
@@ -51,7 +51,6 @@ import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Data.Yaml
-import System.Time (ClockTime)
 import System.Directory
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
@@ -461,7 +460,34 @@ postDeleteR page = do
   redirect (toMaster HomeR)
 
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
-getViewR = view Nothing
+getViewR page = do
+  conf <- config <$> getYesodSub
+  if use_cache conf
+     then do
+          path <- pathForPage page
+          path' <- pathForFile page
+          mbcache <- lookupCache path
+          mbcache' <- lookupCache path'
+          case mbcache `mplus` mbcache' of
+               Just f  -> do
+                 isPage <- isPageFile f
+                 ct <- if isPage
+                          then return typeHtml
+                          else getMimeType f
+                 sendFile ct f
+               Nothing -> view Nothing page
+     else view Nothing page
+
+-- TODO: refactor view so it takes a path as well as page
+-- compute the path in getViewR
+-- then wrap view in a caching function, so its contents get cached
+-- if this is even possible in yesod, with the subsite structure!
+
+getMimeType :: FilePath -> GHandler Gitit master ContentType
+getMimeType fp = do
+  mimeTypes <- mime_types . config <$> getYesodSub
+  return $ maybe "application/octet-stream" id
+         $ M.lookup (drop 1 $ takeExtension fp) mimeTypes
 
 getRevisionR :: HasGitit master => RevisionId -> Page -> GHandler Gitit master RepHtml
 getRevisionR rev = view (Just rev)
@@ -488,9 +514,7 @@ view mbrev page = do
                    htmlContents <- sourceToHtml path' contents
                    layout [ViewTab,HistoryTab] htmlContents
                | otherwise -> do
-                  mimeTypes <- mime_types <$> config <$> getYesodSub
-                  let ct = maybe "application/octet-stream" id
-                           $ M.lookup (drop 1 $ takeExtension path') mimeTypes
+                  ct <- getMimeType path'
                   sendResponse (ct, toContent contents)
    where layout tabs cont = do
            toMaster <- getRouteToMaster
@@ -820,12 +844,15 @@ update' mbrevid page = do
            Just revid -> do
               mres <- liftIO $ modify fs path revid auth comm cont
               case mres of
-                   Right () -> redirect $ toMaster $ ViewR page
+                   Right () -> do
+                      expireCache path
+                      redirect $ toMaster $ ViewR page
                    Left mergeinfo -> do
                       setMessageI $ MsgMerged revid
                       edit False (mergeText mergeinfo)
                            (Just $ revId $ mergeRevision mergeinfo) page
            Nothing -> do
+             expireCache path
              liftIO $ save fs path auth comm cont
              redirect $ toMaster $ ViewR page
        _ -> showEditForm page route enctype widget
@@ -1151,26 +1178,22 @@ postUploadR = undefined
 -- Caching
 ----------
 
-cacheContents :: FilePath -> BS.ByteString -> GHandler Gitit master ()
+cacheContents :: FilePath -> ByteString -> GHandler Gitit master ()
 cacheContents path contents = do
   cachedir <- cache_dir . config <$> getYesodSub
   let fullpath = cachedir </> path
   liftIO $ do
     createDirectoryIfMissing True $ takeDirectory fullpath
-    BS.writeFile fullpath contents
+    B.writeFile fullpath contents
 
-lookupCache :: FilePath -> GHandler Gitit master (Maybe (ClockTime, BS.ByteString))
+lookupCache :: FilePath -> GHandler Gitit master (Maybe FilePath)
 lookupCache path = do
   cachedir <- cache_dir . config <$> getYesodSub
   let fullpath = cachedir </> path
-  liftIO $ do
-    exists <- doesFileExist fullpath
-    if exists
-       then do
-         modtime <- getModificationTime fullpath
-         contents <- BS.readFile fullpath
-         return $ Just (modtime, contents)
-       else return Nothing
+  exists <- liftIO $ doesFileExist fullpath
+  return $ if exists
+              then Just fullpath
+              else Nothing
 
 expireCache :: FilePath -> GHandler Gitit master ()
 expireCache path = do
