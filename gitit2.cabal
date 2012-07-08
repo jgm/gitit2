@@ -84,6 +84,7 @@ library
                  , time                          >= 1.1        && < 1.5
                  , syb                           >= 0.3        && < 0.4
                  , directory                     >= 1.1        && < 1.2
+                 , blaze-builder                 >= 0.3        && < 0.4
                  , pandoc-types                  >= 1.9.1      && < 1.10
 
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind

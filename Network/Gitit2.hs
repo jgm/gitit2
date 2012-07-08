@@ -38,8 +38,10 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString as BS
 import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
+import Blaze.ByteString.Builder (toByteStringIO)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import Data.Monoid (Monoid, mappend, mconcat)
@@ -478,11 +480,6 @@ getViewR page = do
                Nothing -> view Nothing page
      else view Nothing page
 
--- TODO: refactor view so it takes a path as well as page
--- compute the path in getViewR
--- then wrap view in a caching function, so its contents get cached
--- if this is even possible in yesod, with the subsite structure!
-
 getMimeType :: FilePath -> GHandler Gitit master ContentType
 getMimeType fp = do
   mimeTypes <- mime_types . config <$> getYesodSub
@@ -500,7 +497,7 @@ view mbrev page = do
   case mbcont of
        Just contents -> do
          htmlContents <- contentsToWikiPage page contents >>= pageToHtml
-         layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
+         caching path $ layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
        Nothing -> do
          path' <- pathForFile page
          mbcont' <- getRawContents path' mbrev
@@ -512,10 +509,10 @@ view mbrev page = do
               Just contents
                | is_source -> do
                    htmlContents <- sourceToHtml path' contents
-                   layout [ViewTab,HistoryTab] htmlContents
+                   caching path' $ layout [ViewTab,HistoryTab] htmlContents
                | otherwise -> do
                   ct <- getMimeType path'
-                  sendResponse (ct, toContent contents)
+                  caching path' $ sendResponse (ct, toContent contents)
    where layout tabs cont = do
            toMaster <- getRouteToMaster
            makePage pageLayout{ pgName = Just page
@@ -1178,13 +1175,17 @@ postUploadR = undefined
 -- Caching
 ----------
 
-cacheContents :: FilePath -> ByteString -> GHandler Gitit master ()
-cacheContents path contents = do
+caching :: FilePath -> GHandler Gitit master RepHtml -> GHandler Gitit master RepHtml
+caching path handler = do
   cachedir <- cache_dir . config <$> getYesodSub
   let fullpath = cachedir </> path
-  liftIO $ do
-    createDirectoryIfMissing True $ takeDirectory fullpath
-    B.writeFile fullpath contents
+  RepHtml contents <- handler
+  case contents of
+       ContentBuilder builder _ -> liftIO $ do
+         createDirectoryIfMissing True $ takeDirectory fullpath
+         toByteStringIO (BS.writeFile fullpath) builder
+         return $ RepHtml contents
+       _ -> return $ RepHtml contents
 
 lookupCache :: FilePath -> GHandler Gitit master (Maybe FilePath)
 lookupCache path = do
