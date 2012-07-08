@@ -29,7 +29,9 @@ import Data.FileStore as FS
 import Data.Char (toLower)
 import System.FilePath
 import Text.Pandoc
-import Text.Pandoc.Shared (stringify)
+import Text.Pandoc.Shared (stringify, inDirectory)
+import Text.Pandoc.SelfContained (makeSelfContained)
+import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
 import Control.Monad (when, filterM, mplus)
 import qualified Data.Text as T
@@ -48,7 +50,6 @@ import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Data.Yaml
-import Text.Pandoc.Builder (toList, text)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -67,10 +68,12 @@ instance Yesod Gitit
 
 -- | Configuration for a gitit wiki.
 data GititConfig = GititConfig{
-       mime_types     :: M.Map String ContentType -- ^ Table of mime types
-     , default_format :: PageFormat               -- ^ Default format for wiki pages
-     , use_mathjax    :: Bool                     -- ^ Link to mathjax script
-     , feed_days      :: Int                      -- ^ Days back for feed entries
+       mime_types       :: M.Map String ContentType -- ^ Table of mime types
+     , default_format   :: PageFormat               -- ^ Default format for wiki pages
+     , wiki_path        :: FilePath                 -- ^ Path to wiki
+     , use_mathjax      :: Bool                     -- ^ Link to mathjax script
+     , feed_days        :: Int                      -- ^ Days back for feed entries
+     , pandoc_user_data :: Maybe FilePath           -- ^ Pandoc userdata directory
      }
 
 data HtmlMathMethod = UseMathML | UseMathJax | UsePlainMath
@@ -572,6 +575,7 @@ stripHeader (x:xs)
   | otherwise = (B.empty, B.unlines (x:xs))
  where isHeaderStart z = ["---"] == B.words z
        isHeaderEnd   z = ["..."] == B.words z
+stripHeader [] = (B.empty, B.empty)
 
 contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GHandler Gitit master WikiPage
 contentsToWikiPage page contents = do
@@ -744,9 +748,9 @@ edit :: HasGitit master
      -> Maybe RevisionId   -- unless new page, Just id of old version
      -> Page
      -> GHandler Gitit master RepHtml
-edit revert text mbrevid page = do
+edit revert txt mbrevid page = do
   requireUser
-  let contents = Textarea $ T.pack $ text
+  let contents = Textarea $ T.pack $ txt
   mr <- getMessageRender
   let comment = if revert
                    then mr $ MsgReverted $ maybe "" id mbrevid
@@ -1094,8 +1098,8 @@ basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> Stri
             -> WikiPage -> GHandler Gitit master (ContentType, Content)
 basicExport templ extension contentType writer = \wikiPage -> do
   setFilename $ wpName wikiPage <> extension
-  -- TODO use (pandocUserData cfg) instead of Nothing
-  template' <- liftIO $ getDefaultTemplate Nothing templ
+  conf <- config <$> getYesodSub
+  template' <- liftIO $ getDefaultTemplate (pandoc_user_data conf) templ
   template <- case template' of
                      Right t  -> return t
                      Left e   -> throw e
@@ -1105,15 +1109,19 @@ basicExport templ extension contentType writer = \wikiPage -> do
       metadataToVar (k, Number v) = Just (T.unpack k, show v)
       metadataToVar _             = Nothing
   let vars = mapMaybe metadataToVar $ M.toList $ wpMetadata wikiPage
-  sendResponse (contentType, toContent
-   $ writer defaultWriterOptions{ writerTemplate = template
+  let rendered =  writer defaultWriterOptions{
+                                  writerTemplate = template
                                 , writerStandalone = True
                                 , writerLiterateHaskell = wpLHS wikiPage
                                 , writerTableOfContents = wpTOC wikiPage
                                 , writerHTMLMathMethod = MathML Nothing
-                                , writerVariables = vars
-                                }
-   $ Pandoc (Meta (wpTitle wikiPage) [] []) $ wpContent wikiPage)
+                                , writerVariables = vars }
+        $ Pandoc (Meta (wpTitle wikiPage) [] []) $ wpContent wikiPage
+  rendered' <- if contentType == typeHtml
+                  then liftIO $ inDirectory (wiki_path conf)
+                       $ makeSelfContained (pandoc_user_data conf) rendered
+                  else return rendered
+  sendResponse (contentType, toContent rendered')
 
 setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"

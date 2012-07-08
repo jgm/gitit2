@@ -72,14 +72,15 @@ mimeTypes = M.fromList
         ,("wav","application/x-wav")
         ,("hs","text/plain")]
 
-data Conf = Conf { cfg_port            :: Int
-                 , cfg_listen_address  :: String
-                 , cfg_wiki_path       :: FilePath
-                 , cfg_default_format  :: Text
-                 , cfg_static_dir      :: FilePath
-                 , cfg_mime_types_file :: Maybe FilePath
-                 , cfg_use_mathjax     :: Bool
-                 , cfg_feed_days       :: Int
+data Conf = Conf { cfg_port             :: Int
+                 , cfg_listen_address   :: String
+                 , cfg_wiki_path        :: FilePath
+                 , cfg_default_format   :: Text
+                 , cfg_static_dir       :: FilePath
+                 , cfg_mime_types_file  :: Maybe FilePath
+                 , cfg_use_mathjax      :: Bool
+                 , cfg_feed_days        :: Int
+                 , cfg_pandoc_user_data :: Maybe FilePath
                  }
 
 -- | Read a file associating mime types with extensions, and return a
@@ -106,6 +107,7 @@ parseConfig o = Conf
   <*> o .:? "mime_types_file"
   <*> o .:? "use_mathjax" .!= False
   <*> o .:? "feed_days" .!= 14
+  <*> o .:? "pandoc_user_data"
 
 err :: Int -> String -> IO a
 err code msg = do
@@ -145,8 +147,10 @@ main = do
       (Master (Gitit{ config    = GititConfig{
                                     mime_types = mimes
                                   , default_format = format
+                                  , wiki_path = cfg_wiki_path conf
                                   , use_mathjax = cfg_use_mathjax conf
                                   , feed_days  = cfg_feed_days conf
+                                  , pandoc_user_data = cfg_pandoc_user_data conf
                                   }
                     , filestore = fs
                     , getStatic = st
