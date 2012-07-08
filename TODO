@@ -1,23 +1,25 @@
 Features to implement:
 
-_ export:
-  _ exporters for EPUB, PDF, DOCX, ODT
+_ caching
+  _ add _expire/Page
+  _ hook this up to ctrl-R with javascript expire.js
+  _ caching for exports (special subdir under page, automatically
+    expired when page is)
+  _ caching for atom feeds
 _ file upload:
   _ fill in getUploadR
   _ fill in postUploadR
-_ config file [started]
+_ export:
+  _ exporters for EPUB, PDF, DOCX, ODT
 _ categories:
   _ show categories in view
   _ handlers for individual categories
   _ handler for category index
-_ site initialization
-  _ explicit 'init' command? or wizard?
-_ caching
-  _ need to provide an external way to expire cache, a program e.g.
-    (hook to Ctrl-R as before?)
-  _ caching for atom feeds
 _ plugins/interface
   _ lift the transformation to a transform on WikiPage
+_ config file [started]
+_ site initialization
+  _ explicit 'init' command? or wizard?
 _ user logins/accounts
   _ user pages (linked from history)
 _ documentation
