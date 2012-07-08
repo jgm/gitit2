@@ -1152,11 +1152,34 @@ postUploadR = undefined
 ----------
 
 cacheContents :: FilePath -> BS.ByteString -> GHandler Gitit master ()
-cacheContents path contents = undefined
+cacheContents path contents = do
+  cachedir <- cache_dir . config <$> getYesodSub
+  let fullpath = cachedir </> path
+  liftIO $ do
+    createDirectoryIfMissing True $ takeDirectory fullpath
+    BS.writeFile fullpath contents
 
 lookupCache :: FilePath -> GHandler Gitit master (Maybe (ClockTime, BS.ByteString))
-lookupCache path = undefined
+lookupCache path = do
+  cachedir <- cache_dir . config <$> getYesodSub
+  let fullpath = cachedir </> path
+  liftIO $ do
+    exists <- doesFileExist fullpath
+    if exists
+       then do
+         modtime <- getModificationTime fullpath
+         contents <- BS.readFile fullpath
+         return $ Just (modtime, contents)
+       else return Nothing
 
 expireCache :: FilePath -> GHandler Gitit master ()
-expireCache path = undefined
-
+expireCache path = do
+  cachedir <- cache_dir . config <$> getYesodSub
+  let fullpath = cachedir </> path
+  liftIO $ do
+    exists <- doesFileExist fullpath
+    when exists $ removeFile $ cachedir </> path
+    -- TODO also expire any exports based on this page
+    -- ultimately we'll cache exports in a special directory
+    -- based on the path of the page's source, e.g.
+    -- "Front Page.page.d/Front Page.html"
