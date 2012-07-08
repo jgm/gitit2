@@ -48,6 +48,7 @@ import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Data.Yaml
+import Text.Pandoc.Builder (toList, text)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -602,7 +603,7 @@ contentsToWikiPage page contents = do
            , wpFormat      = format
            , wpTOC         = toc
            , wpLHS         = lhs
-           , wpTitle       = [Str $ T.unpack $ pageToText page]
+           , wpTitle       = toList $ text $ T.unpack $ pageToText page
            , wpCategories  = categories
            , wpMetadata    = metadata
            , wpCacheable   = True
@@ -1093,18 +1094,26 @@ basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> Stri
             -> WikiPage -> GHandler Gitit master (ContentType, Content)
 basicExport templ extension contentType writer = \wikiPage -> do
   setFilename $ wpName wikiPage <> extension
+  -- TODO use (pandocUserData cfg) instead of Nothing
   template' <- liftIO $ getDefaultTemplate Nothing templ
   template <- case template' of
                      Right t  -> return t
                      Left e   -> throw e
-  -- TODO use (pandocUserData cfg) instead of Nothing
+  let metadataToVar :: (Text, Value) -> Maybe (String, String)
+      metadataToVar (k, String v) = Just (T.unpack k, T.unpack v)
+      metadataToVar (k, Bool v)   = Just (T.unpack k, if v then "yes" else "no")
+      metadataToVar (k, Number v) = Just (T.unpack k, show v)
+      metadataToVar _             = Nothing
+  let vars = mapMaybe metadataToVar $ M.toList $ wpMetadata wikiPage
   sendResponse (contentType, toContent
    $ writer defaultWriterOptions{ writerTemplate = template
                                 , writerStandalone = True
                                 , writerLiterateHaskell = wpLHS wikiPage
                                 , writerTableOfContents = wpTOC wikiPage
-                                , writerHTMLMathMethod = MathML Nothing }
-   $ Pandoc (Meta [] [] []) $ wpContent wikiPage)
+                                , writerHTMLMathMethod = MathML Nothing
+                                , writerVariables = vars
+                                }
+   $ Pandoc (Meta (wpTitle wikiPage) [] []) $ wpContent wikiPage)
 
 setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"
