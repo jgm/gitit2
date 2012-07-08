@@ -38,6 +38,7 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString as BS
 import Data.ByteString.Lazy.UTF8 (toString)
 import Text.Blaze.Html hiding (contents)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
@@ -50,6 +51,8 @@ import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Data.Yaml
+import System.Time (ClockTime)
+import System.Directory
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -1142,4 +1145,17 @@ getUploadR = undefined
 
 postUploadR :: HasGitit master => GHandler Gitit master RepHtml
 postUploadR = undefined
+
+----------
+-- Caching
+----------
+
+cacheContents :: FilePath -> BS.ByteString -> GHandler Gitit master ()
+cacheContents = undefined
+
+lookupCache :: FilePath -> GHandler Gitit master (Maybe (ClockTime, BS.ByteString))
+lookupCache = undefined
+
+expireCache :: FilePath -> GHandler Gitit master ()
+expireCache = undefined
 
