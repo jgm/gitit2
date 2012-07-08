@@ -81,6 +81,7 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_use_mathjax      :: Bool
                  , cfg_feed_days        :: Int
                  , cfg_pandoc_user_data :: Maybe FilePath
+                 , cfg_cache_dir        :: FilePath
                  }
 
 -- | Read a file associating mime types with extensions, and return a
@@ -108,6 +109,7 @@ parseConfig o = Conf
   <*> o .:? "use_mathjax" .!= False
   <*> o .:? "feed_days" .!= 14
   <*> o .:? "pandoc_user_data"
+  <*> o .:? "cache_dir" .!= "cache"
 
 err :: Int -> String -> IO a
 err code msg = do
@@ -151,6 +153,7 @@ main = do
                                   , use_mathjax = cfg_use_mathjax conf
                                   , feed_days  = cfg_feed_days conf
                                   , pandoc_user_data = cfg_pandoc_user_data conf
+                                  , cache_dir = cfg_cache_dir conf
                                   }
                     , filestore = fs
                     , getStatic = st
