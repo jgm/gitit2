@@ -223,6 +223,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_atom/*Page AtomPageR GET
 /_export/*Page ExportR POST
 /_expire/*Page ExpireR POST
+/_expire ExpireHomeR POST
 /*Page     ViewR GET
 |]
 
@@ -468,12 +469,12 @@ getViewR page = do
      then do
           path <- pathForPage page
           path' <- pathForFile page
-          mbcache <- lookupCache path
+          mbcache <- lookupCache $ path </> "_page.html"
           mbcache' <- lookupCache path'
           case mbcache `mplus` mbcache' of
                Just f  -> do
-                 isPage <- isPageFile f
-                 ct <- if isPage
+                 ispage <- isPageFile f
+                 ct <- if ispage
                           then return typeHtml
                           else getMimeType f
                  sendFile ct f
@@ -497,7 +498,7 @@ view mbrev page = do
   case mbcont of
        Just contents -> do
          htmlContents <- contentsToWikiPage page contents >>= pageToHtml
-         caching path $ layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
+         caching (path </> "_page.html") $ layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
        Nothing -> do
          path' <- pathForFile page
          mbcont' <- getRawContents path' mbrev
@@ -1181,7 +1182,14 @@ postUploadR = undefined
 
 ----------
 -- Caching
+--
+-- We cache Blah.page as Blah.page/_page.html, and any of its exports
+-- as Blah.page/EXPORT_FORMAT/filename.  Remove the whole Blah.page directory
+-- expires all of them.  Non-pages Foo.jpg just get cached as Foo.jpg.
 ----------
+
+postExpireHomeR :: HasGitit master => GHandler Gitit master RepHtml
+postExpireHomeR = postExpireR (Page ["Front Page"]) -- TODO make configurable
 
 postExpireR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 postExpireR page = do
@@ -1223,8 +1231,8 @@ expireCache path = do
   let fullpath = cachedir </> path
   liftIO $ do
     exists <- doesFileExist fullpath
-    when exists $ removeFile $ cachedir </> path
-    -- TODO also expire any exports based on this page
-    -- ultimately we'll cache exports in a special directory
-    -- based on the path of the page's source, e.g.
-    -- "Front Page.page.d/Front Page.html"
+    if exists
+       then removeFile $ cachedir </> path
+       else do
+         exists' <- doesDirectoryExist fullpath
+         when exists' $ removeDirectoryRecursive fullpath

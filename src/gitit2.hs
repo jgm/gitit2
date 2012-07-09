@@ -54,10 +54,10 @@ mimeTypes :: M.Map String ContentType
 mimeTypes = M.fromList
         [("xml","application/xml")
         ,("xsl","application/xml")
-        ,("js","text/javascript")
-        ,("html","text/html")
-        ,("htm","text/html")
-        ,("css","text/css")
+        ,("js","text/javascript; charset=UTF-8")
+        ,("html","text/html; charset=UTF-8")
+        ,("htm","text/html; charset=UTF-8")
+        ,("css","text/css; charset=UTF-8")
         ,("gif","image/gif")
         ,("jpg","image/jpeg")
         ,("png","image/png")
@@ -70,7 +70,7 @@ mimeTypes = M.fromList
         ,("ps","application/postscript")
         ,("rtf","application/rtf")
         ,("wav","application/x-wav")
-        ,("hs","text/plain")]
+        ,("hs","text/plain; charset=UTF-8")]
 
 data Conf = Conf { cfg_port             :: Int
                  , cfg_listen_address   :: String
