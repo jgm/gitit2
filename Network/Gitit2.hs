@@ -53,6 +53,7 @@ import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Data.Yaml
 import System.Directory
+import Network.HTTP.Base (urlEncode, urlDecode)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
