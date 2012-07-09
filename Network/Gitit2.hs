@@ -1086,7 +1086,7 @@ feed mbpage = do
     }
 
 postExportR :: HasGitit master
-            => Page -> GHandler Gitit master (ContentType, Content)
+            => Page -> GHandler Gitit master RepHtml
 postExportR page = do
   format <- runInputPost (ireq textField "format")
   case lookup format exportFormats of
@@ -1103,7 +1103,7 @@ postExportR page = do
 -- handle math in html formats
 -- other slide show issues (e.g. dzslides core)
 -- add pdf, docx, odt, epub
-exportFormats :: [(Text, WikiPage -> GHandler Gitit master (ContentType, Content))]
+exportFormats :: [(Text, WikiPage -> GHandler Gitit master RepHtml)]
 exportFormats =
   [ ("Groff man", basicExport "man" ".1" typePlain writeMan)
   , ("reStructuredText", basicExport "rst" ".txt" typePlain writeRST)
@@ -1133,7 +1133,7 @@ exportFormats =
   ]
 
 basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> String)
-            -> WikiPage -> GHandler Gitit master (ContentType, Content)
+            -> WikiPage -> GHandler Gitit master RepHtml
 basicExport templ extension contentType writer = \wikiPage -> do
   setFilename $ wpName wikiPage <> extension
   conf <- config <$> getYesodSub
@@ -1214,7 +1214,9 @@ caching path handler = do
          createDirectoryIfMissing True $ takeDirectory fullpath
          toByteStringIO (BS.writeFile fullpath) builder
          return $ RepHtml contents
-       _ -> return $ RepHtml contents
+       _ -> liftIO $ do
+         putStrLn $ "Can't cache " ++ path
+         return $ RepHtml contents
 
 lookupCache :: FilePath -> GHandler Gitit master (Maybe FilePath)
 lookupCache path = do

@@ -3,7 +3,9 @@ Features to implement:
 _ caching
   x add _expire/Page
   x hook this up to ctrl-R with javascript expire.js
-  _ content types don't include UTF-8
+  _ NOTE: 'caching' doesn't work because sendResponse shortcircuits
+    and caching never gets called.  Replace with something that
+    just saves the bytestring contents, as in the old gitit?
   _ caching for exports (special subdir under page, automatically
     expired when page is)
   _ caching for atom feeds
