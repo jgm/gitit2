@@ -1,5 +1,17 @@
 Features to implement:
 
+New plan for caching:
+
+/Front Page.page
+  file: url-encoded contenttype
+  dir:  FORMAT
+    file: url-encoded contenttype
+/Blah/Foo.jpg
+  file: url-encoded contenttype
+
+note - can setFilename even when using sendFile
+with exports we'll do that based on page name and format extension.
+
 _ caching
   x add _expire/Page
   x hook this up to ctrl-R with javascript expire.js
