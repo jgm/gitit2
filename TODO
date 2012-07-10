@@ -1,19 +1,6 @@
 Features to implement:
 
-New plan for caching:
-
-/Front Page.page
-  file: url-encoded contenttype
-  dir:  FORMAT
-    file: url-encoded contenttype
-/Blah/Foo.jpg
-  file: url-encoded contenttype
-
-note - can setFilename even when using sendFile
-with exports we'll do that based on page name and format extension.
-
 _ caching
-  _ cache retrieval for exports (inc. setting filenames properly)
   _ caching for atom feeds
 _ preview in edit?
 _ file upload:
