@@ -1,8 +1,7 @@
 Features to implement:
 
-_ caching
-  _ caching for atom feeds
 _ preview in edit?
+_ configurable page extension
 _ file upload:
   _ fill in getUploadR
   _ fill in postUploadR

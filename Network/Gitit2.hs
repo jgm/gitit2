@@ -1026,10 +1026,15 @@ getActivityR start = do
     |]
 
 getAtomSiteR :: HasGitit master => GHandler Gitit master RepAtom
-getAtomSiteR = feed Nothing >>= atomFeed
+getAtomSiteR = do
+  tryCache "_feed"
+  caching "_feed" $ feed Nothing >>= atomFeed
 
 getAtomPageR :: HasGitit master => Page -> GHandler Gitit master RepAtom
-getAtomPageR page = feed (Just page) >>= atomFeed
+getAtomPageR page = do
+  path <- pathForPage page
+  tryCache (path </> "_feed")
+  caching (path </> "_feed") $ feed (Just page) >>= atomFeed
 
 feed :: HasGitit master
      => Maybe Page  -- page, or nothing for all
