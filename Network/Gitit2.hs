@@ -606,8 +606,11 @@ contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GHandler Gitit m
 contentsToWikiPage page contents = do
   conf <- config <$> getYesodSub
   let (h,b) = stripHeader $ B.lines contents
-  let h' = mconcat $ B.toChunks h
-  let metadata :: (M.Map Text Value) = maybe M.empty id $ decode h'
+  let metadata :: M.Map Text Value
+      metadata = if B.null h
+                    then M.empty
+                    else maybe M.empty id
+                         $ decode $! BS.concat $ B.toChunks h
   let def = defaultParserState{ stateSmart = True }
   let formatStr = case M.lookup "format" metadata of
                          Just (String s) -> s
