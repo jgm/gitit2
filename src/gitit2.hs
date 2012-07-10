@@ -79,7 +79,8 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_static_dir       :: FilePath
                  , cfg_mime_types_file  :: Maybe FilePath
                  , cfg_use_mathjax      :: Bool
-                 , cfg_feed_days        :: Int
+                 , cfg_feed_days        :: Integer
+                 , cfg_feed_minutes     :: Integer
                  , cfg_pandoc_user_data :: Maybe FilePath
                  , cfg_use_cache        :: Bool
                  , cfg_cache_dir        :: FilePath
@@ -109,6 +110,7 @@ parseConfig o = Conf
   <*> o .:? "mime_types_file"
   <*> o .:? "use_mathjax" .!= False
   <*> o .:? "feed_days" .!= 14
+  <*> o .:? "feed_minutes" .!= 15
   <*> o .:? "pandoc_user_data"
   <*> o .:? "use_cache" .!= False
   <*> o .:? "cache_dir" .!= "cache"
@@ -154,6 +156,7 @@ main = do
                                   , wiki_path = cfg_wiki_path conf
                                   , use_mathjax = cfg_use_mathjax conf
                                   , feed_days  = cfg_feed_days conf
+                                  , feed_minutes  = cfg_feed_minutes conf
                                   , pandoc_user_data = cfg_pandoc_user_data conf
                                   , use_cache = cfg_use_cache conf
                                   , cache_dir = cfg_cache_dir conf

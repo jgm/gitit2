@@ -33,7 +33,7 @@ import Text.Pandoc.Shared (stringify, inDirectory, readDataFile)
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
-import Control.Monad (when, filterM, mplus)
+import Control.Monad (when, unless, filterM, mplus)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
@@ -54,6 +54,7 @@ import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Data.Yaml
 import System.Directory
+import System.Time (ClockTime (..), getClockTime)
 import Network.HTTP.Base (urlEncode, urlDecode)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
@@ -77,7 +78,8 @@ data GititConfig = GititConfig{
      , default_format   :: PageFormat               -- ^ Default format for wiki pages
      , wiki_path        :: FilePath                 -- ^ Path to wiki
      , use_mathjax      :: Bool                     -- ^ Link to mathjax script
-     , feed_days        :: Int                      -- ^ Days back for feed entries
+     , feed_days        :: Integer                  -- ^ Days back for feed entries
+     , feed_minutes     :: Integer                  -- ^ Minutes to cache feed before refresh
      , pandoc_user_data :: Maybe FilePath           -- ^ Pandoc userdata directory
      , use_cache        :: Bool                     -- ^ Cache pages and files
      , cache_dir        :: FilePath                 -- ^ Path to cache
@@ -844,14 +846,14 @@ update' mbrevid page = do
               mres <- liftIO $ modify fs path revid auth comm cont
               case mres of
                    Right () -> do
-                      expireCache path
+                      expireCache 0 path
                       redirect $ toMaster $ ViewR page
                    Left mergeinfo -> do
                       setMessageI $ MsgMerged revid
                       edit False (mergeText mergeinfo)
                            (Just $ revId $ mergeRevision mergeinfo) page
            Nothing -> do
-             expireCache path
+             expireCache 0 path
              liftIO $ save fs path auth comm cont
              redirect $ toMaster $ ViewR page
        _ -> showEditForm page route enctype widget
@@ -1199,8 +1201,8 @@ postExpireR page = do
   useCache <- use_cache . config <$> getYesodSub
   if useCache
      then do
-       pathForPage page >>= expireCache
-       pathForFile page >>= expireCache
+       pathForPage page >>= expireCache 0
+       pathForFile page >>= expireCache 0
      else return ()
   toMaster <- getRouteToMaster
   redirect $ toMaster $ ViewR page
@@ -1252,10 +1254,18 @@ tryCache path = do
           else return ()
      else return ()
 
-expireCache :: FilePath -> GHandler Gitit master ()
-expireCache path = do
+-- | Expire the cached path unless it is younger than 'minutes' old.
+expireCache :: Integer -> FilePath -> GHandler Gitit master ()
+expireCache minutes path = do
+  conf <- config <$> getYesodSub
+  expireCache (feed_minutes conf) (path </> "_feed")
+  expireCache (feed_minutes conf) "_feed"
   cachedir <- cache_dir . config <$> getYesodSub
   let fullpath = cachedir </> path
   liftIO $ do
     exists <- doesDirectoryExist fullpath
-    when exists $ removeDirectoryRecursive fullpath
+    TOD seconds _ <- getModificationTime fullpath
+    TOD seconds' _ <- getClockTime
+    when exists
+      $ unless ((seconds' - seconds) < (minutes * 60))
+        $ removeDirectoryRecursive fullpath

@@ -87,6 +87,7 @@ library
                  , blaze-builder                 >= 0.3        && < 0.4
                  , pandoc-types                  >= 1.9.1      && < 1.10
                  , HTTP                          >= 4000.2     && < 4000.3
+                 , old-time                      >= 1.1        && < 1.2
 
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
 
