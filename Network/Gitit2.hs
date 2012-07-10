@@ -503,8 +503,7 @@ view mbrev page = do
                | otherwise -> do
                   ct <- getMimeType path'
                   let content = toContent contents
-                  cacheContent path' (ct, content)
-                  sendResponse (ct, content)
+                  caching path' (return (ct, content)) >>= sendResponse
    where layout tabs cont = do
            toMaster <- getRouteToMaster
            makePage pageLayout{ pgName = Just page
@@ -1077,7 +1076,7 @@ feed mbpage = do
     }
 
 postExportR :: HasGitit master
-            => Page -> GHandler Gitit master RepHtml
+            => Page -> GHandler Gitit master (ContentType, Content)
 postExportR page = do
   format <- runInputPost (ireq textField "format")
   case lookup format exportFormats of
@@ -1087,14 +1086,16 @@ postExportR page = do
            mbcont <- getRawContents path Nothing
            case mbcont of
                 Nothing   -> fail "Could not get page contents"
-                Just cont -> contentsToWikiPage page cont >>= f
+                Just cont -> contentsToWikiPage page cont >>=
+                               caching (path </> T.unpack format) . f >>=
+                               sendResponse
 
 -- TODO:
 -- fix mime types
 -- handle math in html formats
 -- other slide show issues (e.g. dzslides core)
 -- add pdf, docx, odt, epub
-exportFormats :: [(Text, WikiPage -> GHandler Gitit master RepHtml)]
+exportFormats :: [(Text, WikiPage -> GHandler Gitit master (ContentType,Content))]
 exportFormats =
   [ ("Groff man", basicExport "man" ".1" typePlain writeMan)
   , ("reStructuredText", basicExport "rst" ".txt" typePlain writeRST)
@@ -1124,7 +1125,7 @@ exportFormats =
   ]
 
 basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> String)
-            -> WikiPage -> GHandler Gitit master RepHtml
+            -> WikiPage -> GHandler Gitit master (ContentType, Content)
 basicExport templ extension contentType writer = \wikiPage -> do
   setFilename $ wpName wikiPage <> extension
   conf <- config <$> getYesodSub
@@ -1159,7 +1160,8 @@ basicExport templ extension contentType writer = \wikiPage -> do
                   then liftIO $ inDirectory (wiki_path conf)
                        $ makeSelfContained (pandoc_user_data conf) rendered
                   else return rendered
-  sendResponse (contentType, toContent rendered')
+  let content = toContent rendered'
+  return (contentType, content)
 
 setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"
