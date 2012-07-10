@@ -13,13 +13,7 @@ note - can setFilename even when using sendFile
 with exports we'll do that based on page name and format extension.
 
 _ caching
-  x add _expire/Page
-  x hook this up to ctrl-R with javascript expire.js
-  _ NOTE: 'caching' doesn't work because sendResponse shortcircuits
-    and caching never gets called.  Replace with something that
-    just saves the bytestring contents, as in the old gitit?
-  _ caching for exports (special subdir under page, automatically
-    expired when page is)
+  _ cache retrieval for exports (inc. setting filenames properly)
   _ caching for atom feeds
 _ preview in edit?
 _ file upload:
