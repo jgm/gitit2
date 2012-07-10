@@ -1081,8 +1081,11 @@ postExportR page = do
   format <- runInputPost (ireq textField "format")
   case lookup format exportFormats of
          Nothing -> fail "Unrecognized format"
-         Just f  -> do
+         Just (extension, f) -> do
            path <- pathForPage page
+           -- set filename here so it works for cached page
+           setFilename $ pageToText page <> extension
+           tryCache $ path </> T.unpack format
            mbcont <- getRawContents path Nothing
            case mbcont of
                 Nothing   -> fail "Could not get page contents"
@@ -1095,39 +1098,38 @@ postExportR page = do
 -- handle math in html formats
 -- other slide show issues (e.g. dzslides core)
 -- add pdf, docx, odt, epub
-exportFormats :: [(Text, WikiPage -> GHandler Gitit master (ContentType,Content))]
+exportFormats :: [(Text, (Text, WikiPage -> GHandler Gitit master (ContentType,Content)))]
 exportFormats =
-  [ ("Groff man", basicExport "man" ".1" typePlain writeMan)
-  , ("reStructuredText", basicExport "rst" ".txt" typePlain writeRST)
-  , ("Markdown", basicExport "markdown" ".txt" typePlain writeMarkdown)
-  , ("Textile", basicExport "textile" ".textile" typePlain writeTextile)
-  , ("Plain text", basicExport "plain" ".txt" typePlain writePlain)
-  , ("Org-mode", basicExport "org" ".org" typePlain writeOrg)
-  , ("Asciidoc", basicExport "asciidoc" ".txt" typePlain writeAsciiDoc)
-  , ("Mediawiki", basicExport "mediawiki" ".wiki" typePlain writeMediaWiki)
-  , ("HTML", basicExport "html" ".html" typeHtml writeHtmlString)
-  , ("HTML5", basicExport "html5" ".html" typeHtml $ \opts ->
-              writeHtmlString opts{ writerHtml5 = True })
-  , ("S5", basicExport "s5" ".html" typeHtml $ \opts ->
-              writeHtmlString opts{ writerSlideVariant = S5Slides })
-  , ("Slidy", basicExport "slidy" ".html" typeHtml $ \opts ->
-              writeHtmlString opts{ writerSlideVariant = SlidySlides })
-  , ("DZSlides", basicExport "dzslides" ".html" typeHtml $ \opts ->
+  [ ("Groff man", (".1", basicExport "man" typePlain writeMan))
+  , ("reStructuredText", (".txt", basicExport "rst" typePlain writeRST))
+  , ("Markdown", (".txt", basicExport "markdown" typePlain writeMarkdown))
+  , ("Textile", (".txt", basicExport "textile" typePlain writeTextile))
+  , ("Plain text", (".txt", basicExport "plain" typePlain writePlain))
+  , ("Org-mode", (".org", basicExport "org" typePlain writeOrg))
+  , ("Asciidoc", (".txt", basicExport "asciidoc" typePlain writeAsciiDoc))
+  , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain writeMediaWiki))
+  , ("HTML", (".html", basicExport "html" typeHtml writeHtmlString))
+  , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
+              writeHtmlString opts{ writerHtml5 = True }))
+  , ("S5", (".html", basicExport "s5" typeHtml $ \opts ->
+              writeHtmlString opts{ writerSlideVariant = S5Slides }))
+  , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
+              writeHtmlString opts{ writerSlideVariant = SlidySlides }))
+  , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts ->
               writeHtmlString opts{ writerSlideVariant = DZSlides
-                            , writerHtml5 = True })
-  , ("LaTeX", basicExport "latex" ".tex" "application/x-latex" writeLaTeX)
-  , ("Beamer", basicExport "beamer" ".tex" "application/x-latex" writeLaTeX)
-  , ("ConTeXt", basicExport "context" ".tex" "application/x-context" writeConTeXt)
-  , ("DocBook", basicExport "docbook" ".xml" "application/docbook+xml" writeDocbook)
-  , ("OpenDocument", basicExport "opendocument" ".xml" "application/vnd.oasis.opendocument.text" writeOpenDocument)
-  , ("Texinfo", basicExport "texinfo" ".texi" "application/x-texinfo" writeTexinfo)
-  , ("RTF", basicExport "rtf" ".rtf" "application/rtf" writeRTF)
+                            , writerHtml5 = True }))
+  , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" writeLaTeX))
+  , ("Beamer", (".tex", basicExport "beamer" "application/x-latex" writeLaTeX))
+  , ("ConTeXt", (".tex", basicExport "context" "application/x-context" writeConTeXt))
+  , ("DocBook", (".xml", basicExport "docbook" "application/docbook+xml" writeDocbook))
+  , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text" writeOpenDocument))
+  , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" writeTexinfo))
+  , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTF))
   ]
 
-basicExport :: String -> Text -> ContentType -> (WriterOptions -> Pandoc -> String)
+basicExport :: String -> ContentType -> (WriterOptions -> Pandoc -> String)
             -> WikiPage -> GHandler Gitit master (ContentType, Content)
-basicExport templ extension contentType writer = \wikiPage -> do
-  setFilename $ wpName wikiPage <> extension
+basicExport templ contentType writer = \wikiPage -> do
   conf <- config <$> getYesodSub
   template' <- liftIO $ getDefaultTemplate (pandoc_user_data conf) templ
   template <- case template' of
