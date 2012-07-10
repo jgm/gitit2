@@ -846,14 +846,14 @@ update' mbrevid page = do
               mres <- liftIO $ modify fs path revid auth comm cont
               case mres of
                    Right () -> do
-                      expireCache 0 path
+                      expireCache path
                       redirect $ toMaster $ ViewR page
                    Left mergeinfo -> do
                       setMessageI $ MsgMerged revid
                       edit False (mergeText mergeinfo)
                            (Just $ revId $ mergeRevision mergeinfo) page
            Nothing -> do
-             expireCache 0 path
+             expireCache path
              liftIO $ save fs path auth comm cont
              redirect $ toMaster $ ViewR page
        _ -> showEditForm page route enctype widget
@@ -1201,8 +1201,8 @@ postExpireR page = do
   useCache <- use_cache . config <$> getYesodSub
   if useCache
      then do
-       pathForPage page >>= expireCache 0
-       pathForFile page >>= expireCache 0
+       pathForPage page >>= expireCache
+       pathForFile page >>= expireCache
      else return ()
   toMaster <- getRouteToMaster
   redirect $ toMaster $ ViewR page
@@ -1254,18 +1254,28 @@ tryCache path = do
           else return ()
      else return ()
 
--- | Expire the cached path unless it is younger than 'minutes' old.
-expireCache :: Integer -> FilePath -> GHandler Gitit master ()
-expireCache minutes path = do
+expireCache :: FilePath -> GHandler Gitit master ()
+expireCache path = do
   conf <- config <$> getYesodSub
-  expireCache (feed_minutes conf) (path </> "_feed")
-  expireCache (feed_minutes conf) "_feed"
+  expireFeed (feed_minutes conf) (path </> "_feed")
+  expireFeed (feed_minutes conf) "_feed"
   cachedir <- cache_dir . config <$> getYesodSub
   let fullpath = cachedir </> path
   liftIO $ do
     exists <- doesDirectoryExist fullpath
-    TOD seconds _ <- getModificationTime fullpath
-    TOD seconds' _ <- getClockTime
-    when exists
-      $ unless ((seconds' - seconds) < (minutes * 60))
+    when exists $ removeDirectoryRecursive fullpath
+
+-- | Expire the cached feed unless it is younger than 'minutes' old.
+expireFeed :: Integer -> FilePath -> GHandler Gitit master ()
+expireFeed minutes path = do
+  cachedir <- cache_dir . config <$> getYesodSub
+  let fullpath = cachedir </> path
+  liftIO $ do
+    exists <- doesDirectoryExist fullpath
+    when exists $ do
+      TOD seconds _ <- getModificationTime fullpath
+      TOD seconds' _ <- getClockTime
+      unless ((seconds' - seconds) < (minutes * 60))
         $ removeDirectoryRecursive fullpath
+
+
