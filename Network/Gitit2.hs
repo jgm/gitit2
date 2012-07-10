@@ -40,6 +40,7 @@ import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString as BS
 import Data.ByteString.Lazy.UTF8 (toString)
+import qualified Data.ByteString.UTF8 as BSU
 import Text.Blaze.Html hiding (contents)
 import Blaze.ByteString.Builder (toByteStringIO)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
@@ -467,19 +468,9 @@ getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
   conf <- config <$> getYesodSub
   if use_cache conf
-     then do
-          path <- pathForPage page
-          path' <- pathForFile page
-          mbcache <- lookupCache $ path </> "_page.html"
-          mbcache' <- lookupCache path'
-          case mbcache `mplus` mbcache' of
-               Just f  -> do
-                 ispage <- isPageFile f
-                 ct <- if ispage
-                          then return typeHtml
-                          else getMimeType f
-                 sendFile ct f
-               Nothing -> view Nothing page
+     then pathForPage page >>= \f ->
+           tryCache f (pathForFile page >>= \f' ->
+             tryCache f' (view Nothing page))
      else view Nothing page
 
 getMimeType :: FilePath -> GHandler Gitit master ContentType
@@ -499,7 +490,7 @@ view mbrev page = do
   case mbcont of
        Just contents -> do
          htmlContents <- contentsToWikiPage page contents >>= pageToHtml
-         caching (path </> "_page.html") $ layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
+         caching path $ layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
        Nothing -> do
          path' <- pathForFile page
          mbcont' <- getRawContents path' mbrev
@@ -1205,37 +1196,46 @@ postExpireR page = do
   toMaster <- getRouteToMaster
   redirect $ toMaster $ ViewR page
 
-caching :: FilePath -> GHandler Gitit master RepHtml -> GHandler Gitit master RepHtml
+caching :: HasReps a
+        => FilePath -> GHandler Gitit master a -> GHandler Gitit master a
 caching path handler = do
   cachedir <- cache_dir . config <$> getYesodSub
-  let fullpath = cachedir </> path
-  RepHtml contents <- handler
+  result <- handler
+  (ct, contents) <- liftIO $ chooseRep result []
   case contents of
        ContentBuilder builder _ -> liftIO $ do
+         let fullpath = cachedir </> path </> urlEncode (BSU.toString ct)
          createDirectoryIfMissing True $ takeDirectory fullpath
          toByteStringIO (BS.writeFile fullpath) builder
-         return $ RepHtml contents
+         return result
        _ -> liftIO $ do
+         -- TODO replace w logging
          putStrLn $ "Can't cache " ++ path
-         return $ RepHtml contents
+         return result
 
-lookupCache :: FilePath -> GHandler Gitit master (Maybe FilePath)
-lookupCache path = do
+tryCache :: FilePath -> GHandler Gitit master a -> GHandler Gitit master a
+tryCache path handler = do
   cachedir <- cache_dir . config <$> getYesodSub
   let fullpath = cachedir </> path
-  exists <- liftIO $ doesFileExist fullpath
-  return $ if exists
-              then Just fullpath
-              else Nothing
+  exists <- liftIO $ doesDirectoryExist fullpath
+  let isDotFile ('.':_) = True
+      isDotFile _       = False
+  if exists
+     then do
+       files <- liftIO $ getDirectoryContents fullpath
+       case filter (not . isDotFile) files of
+            (x:_) -> do
+               let ct = BSU.fromString $ urlDecode x
+               -- TODO remove
+               liftIO $ putStrLn $ "Serving " ++ x ++ " from cache"
+               sendFile ct $ fullpath </> x
+            _     -> handler
+     else handler
 
 expireCache :: FilePath -> GHandler Gitit master ()
 expireCache path = do
   cachedir <- cache_dir . config <$> getYesodSub
   let fullpath = cachedir </> path
   liftIO $ do
-    exists <- doesFileExist fullpath
-    if exists
-       then removeFile $ cachedir </> path
-       else do
-         exists' <- doesDirectoryExist fullpath
-         when exists' $ removeDirectoryRecursive fullpath
+    exists <- doesDirectoryExist fullpath
+    when exists $ removeDirectoryRecursive fullpath
