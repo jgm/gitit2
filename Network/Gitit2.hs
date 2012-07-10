@@ -42,7 +42,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.UTF8 as BSU
 import Text.Blaze.Html hiding (contents)
-import Blaze.ByteString.Builder (toByteStringIO)
+import Blaze.ByteString.Builder (toLazyByteString)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend, mconcat)
 import Data.Maybe (mapMaybe)
@@ -466,12 +466,9 @@ postDeleteR page = do
 
 getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 getViewR page = do
-  conf <- config <$> getYesodSub
-  if use_cache conf
-     then pathForPage page >>= \f ->
-           tryCache f (pathForFile page >>= \f' ->
-             tryCache f' (view Nothing page))
-     else view Nothing page
+  pathForPage page >>= tryCache
+  pathForFile page >>= tryCache
+  view Nothing page
 
 getMimeType :: FilePath -> GHandler Gitit master ContentType
 getMimeType fp = do
@@ -505,7 +502,9 @@ view mbrev page = do
                    caching path' $ layout [ViewTab,HistoryTab] htmlContents
                | otherwise -> do
                   ct <- getMimeType path'
-                  caching path' $ sendResponse (ct, toContent contents)
+                  let content = toContent contents
+                  cacheContent path' (ct, content)
+                  sendResponse (ct, content)
    where layout tabs cont = do
            toMaster <- getRouteToMaster
            makePage pageLayout{ pgName = Just page
@@ -1188,10 +1187,8 @@ postExpireR page = do
   useCache <- use_cache . config <$> getYesodSub
   if useCache
      then do
-       path <- pathForPage page
-       path' <- pathForFile page
-       expireCache path
-       expireCache path'
+       pathForPage page >>= expireCache
+       pathForFile page >>= expireCache
      else return ()
   toMaster <- getRouteToMaster
   redirect $ toMaster $ ViewR page
@@ -1199,38 +1196,49 @@ postExpireR page = do
 caching :: HasReps a
         => FilePath -> GHandler Gitit master a -> GHandler Gitit master a
 caching path handler = do
-  cachedir <- cache_dir . config <$> getYesodSub
-  result <- handler
-  (ct, contents) <- liftIO $ chooseRep result []
-  case contents of
-       ContentBuilder builder _ -> liftIO $ do
-         let fullpath = cachedir </> path </> urlEncode (BSU.toString ct)
-         createDirectoryIfMissing True $ takeDirectory fullpath
-         toByteStringIO (BS.writeFile fullpath) builder
-         return result
-       _ -> liftIO $ do
-         -- TODO replace w logging
-         putStrLn $ "Can't cache " ++ path
-         return result
-
-tryCache :: FilePath -> GHandler Gitit master a -> GHandler Gitit master a
-tryCache path handler = do
-  cachedir <- cache_dir . config <$> getYesodSub
-  let fullpath = cachedir </> path
-  exists <- liftIO $ doesDirectoryExist fullpath
-  let isDotFile ('.':_) = True
-      isDotFile _       = False
-  if exists
+  conf <- config <$> getYesodSub
+  if use_cache conf
      then do
-       files <- liftIO $ getDirectoryContents fullpath
-       case filter (not . isDotFile) files of
-            (x:_) -> do
-               let ct = BSU.fromString $ urlDecode x
-               -- TODO remove
-               liftIO $ putStrLn $ "Serving " ++ x ++ " from cache"
-               sendFile ct $ fullpath </> x
-            _     -> handler
+       result <- handler
+       (ct, contents) <- liftIO $ chooseRep result []
+       cacheContent path (ct, contents)
+       return result
      else handler
+
+cacheContent :: FilePath -> (ContentType, Content) -> GHandler Gitit master ()
+cacheContent path (ct, content) = do
+  conf <- config <$> getYesodSub
+  if use_cache conf
+     then do
+       case content of
+            ContentBuilder builder _ -> liftIO $ do
+              let fullpath = cache_dir conf </> path </> urlEncode (BSU.toString ct)
+              createDirectoryIfMissing True $ takeDirectory fullpath
+              B.writeFile fullpath $ toLazyByteString builder
+            _ -> liftIO $ do
+              -- TODO replace w logging
+              putStrLn $ "Can't cache " ++ path
+     else return ()
+
+tryCache :: FilePath -> GHandler Gitit master ()
+tryCache path = do
+  conf <- config <$> getYesodSub
+  if use_cache conf
+     then do
+       let fullpath = cache_dir conf </> path
+       exists <- liftIO $ doesDirectoryExist fullpath
+       let isDotFile ('.':_) = True
+           isDotFile _       = False
+       if exists
+          then do
+            files <- liftIO $ getDirectoryContents fullpath
+            case filter (not . isDotFile) files of
+                 (x:_) -> do
+                    let ct = BSU.fromString $ urlDecode x
+                    sendFile ct $ fullpath </> x
+                 _     -> return ()
+          else return ()
+     else return ()
 
 expireCache :: FilePath -> GHandler Gitit master ()
 expireCache path = do
