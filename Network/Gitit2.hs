@@ -1192,6 +1192,29 @@ setFilename fname = setHeader "Content-Disposition"
 getUploadR :: HasGitit master => GHandler Gitit master RepHtml
 getUploadR = undefined
 
+data Upload = Upload { uploadFile        :: FileInfo
+                     , uploadWikiname    :: Text
+                     , uploadDescription :: Text
+                     , uploadOverwrite   :: Bool
+                     } deriving Show
+
+uploadForm :: HasGitit master
+           => Maybe Upload
+           -> Html
+           -> MForm Gitit master (FormResult Upload, GWidget Gitit master ())
+uploadForm mbupload = renderDivs $ Upload
+    <$> fileAFormReq (fieldSettingsLabel MsgChangeDescription) -- TODO
+    <*> areq commentField (fieldSettingsLabel MsgChangeDescription) -- TODO
+           (uploadWikiname <$> mbupload)
+    <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
+           (uploadDescription <$> mbupload)
+    <*> areq boolField (fieldSettingsLabel MsgChangeDescription) -- TODO
+           (uploadOverwrite <$> mbupload)
+  where commentField = check validateNonempty textField
+        validateNonempty y
+          | T.null y = Left MsgValueRequired
+          | otherwise = Right y
+
 postUploadR :: HasGitit master => GHandler Gitit master RepHtml
 postUploadR = undefined
 
