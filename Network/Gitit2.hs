@@ -1190,7 +1190,19 @@ setFilename fname = setHeader "Content-Disposition"
                   $ "attachment; filename=\"" <> fname <> "\""
 
 getUploadR :: HasGitit master => GHandler Gitit master RepHtml
-getUploadR = undefined
+getUploadR = do
+  (form, enctype) <- generateFormPost $ uploadForm Nothing
+  toMaster <- getRouteToMaster
+  makePage pageLayout{ pgName = Nothing
+                     , pgTabs = []
+                     , pgSelectedTab = EditTab } $ do
+    [whamlet|
+      <h1>_{MsgUploadFile}</h1>
+      <div #uploadform>
+        <form method=post action=@{toMaster $ UploadR} enctype=#{enctype}>
+          ^{form}
+          <input type=submit>
+    |]
 
 data Upload = Upload { uploadFile        :: FileInfo
                      , uploadWikiname    :: Text
