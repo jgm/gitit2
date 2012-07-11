@@ -44,7 +44,7 @@ import qualified Data.ByteString.UTF8 as BSU
 import Text.Blaze.Html hiding (contents)
 import Blaze.ByteString.Builder (toLazyByteString)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
-import Data.Monoid (Monoid, mappend, mconcat)
+import Data.Monoid (Monoid, mappend)
 import Data.Maybe (mapMaybe)
 import System.Random (randomRIO)
 import Control.Exception (throw, handle, try)
@@ -77,6 +77,7 @@ data GititConfig = GititConfig{
        mime_types       :: M.Map String ContentType -- ^ Table of mime types
      , default_format   :: PageFormat               -- ^ Default format for wiki pages
      , wiki_path        :: FilePath                 -- ^ Path to wiki
+     , page_extension   :: FilePath                 -- ^ Extension for page files
      , use_mathjax      :: Bool                     -- ^ Link to mathjax script
      , feed_days        :: Integer                  -- ^ Days back for feed entries
      , feed_minutes     :: Integer                  -- ^ Minutes to cache feed before refresh
@@ -231,6 +232,9 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /*Page     ViewR GET
 |]
 
+getConfig :: GHandler Gitit master GititConfig
+getConfig = config <$> getYesodSub
+
 makeDefaultPage :: HasGitit master => PageLayout -> GWidget Gitit master () -> GHandler Gitit master RepHtml
 makeDefaultPage layout content = do
   toMaster <- getRouteToMaster
@@ -348,16 +352,20 @@ sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
                                   Nothing    -> Nothing
 
 pathForPage :: Page -> GHandler Gitit master FilePath
-pathForPage p = return $ T.unpack (toMessage p) <.> "page"
+pathForPage p = do
+  conf <- getConfig
+  return $ T.unpack (toMessage p) <> page_extension conf
 
 pathForFile :: Page -> GHandler Gitit master FilePath
 pathForFile p = return $ T.unpack $ toMessage p
 
 pageForPath :: FilePath -> GHandler Gitit master Page
-pageForPath fp = return $ textToPage $ T.pack $
-  if takeExtension fp == ".page"
-     then dropExtension fp
-     else fp
+pageForPath fp = do
+  conf <- getConfig
+  return $ textToPage $ T.pack $
+    if takeExtension fp == page_extension conf
+       then dropExtension fp
+       else fp
 
 isDiscussPage :: Page -> Bool
 isDiscussPage (Page xs) = case reverse xs of
@@ -375,7 +383,9 @@ discussedPage (Page xs)
   | otherwise               = Page xs
 
 isPageFile :: FilePath -> GHandler Gitit master Bool
-isPageFile f = return $ takeExtension f == ".page"
+isPageFile f = do
+  conf <- getConfig
+  return $ takeExtension f == page_extension conf
 
 allPageFiles :: GHandler Gitit master [FilePath]
 allPageFiles = do
@@ -474,7 +484,7 @@ getViewR page = do
 
 getMimeType :: FilePath -> GHandler Gitit master ContentType
 getMimeType fp = do
-  mimeTypes <- mime_types . config <$> getYesodSub
+  mimeTypes <- mime_types <$> getConfig
   return $ maybe "application/octet-stream" id
          $ M.lookup (drop 1 $ takeExtension fp) mimeTypes
 
@@ -606,7 +616,7 @@ stripHeader [] = (B.empty, B.empty)
 
 contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GHandler Gitit master WikiPage
 contentsToWikiPage page contents = do
-  conf <- config <$> getYesodSub
+  conf <- getConfig
   let (h,b) = stripHeader $ B.lines contents
   let metadata :: M.Map Text Value
       metadata = if B.null h
@@ -1042,7 +1052,7 @@ feed :: HasGitit master
      => Maybe Page  -- page, or nothing for all
      -> GHandler Gitit master (Feed (Route master))
 feed mbpage = do
-  days <- feed_days . config <$> getYesodSub
+  days <- feed_days <$> getConfig
   toMaster <- getRouteToMaster
   mr <- getMessageRender
   fs <- filestore <$> getYesodSub
@@ -1140,7 +1150,7 @@ exportFormats =
 basicExport :: String -> ContentType -> (WriterOptions -> Pandoc -> String)
             -> WikiPage -> GHandler Gitit master (ContentType, Content)
 basicExport templ contentType writer = \wikiPage -> do
-  conf <- config <$> getYesodSub
+  conf <- getConfig
   template' <- liftIO $ getDefaultTemplate (pandoc_user_data conf) templ
   template <- case template' of
                      Right t  -> return t
@@ -1198,7 +1208,7 @@ postExpireHomeR = postExpireR (Page ["Front Page"]) -- TODO make configurable
 
 postExpireR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 postExpireR page = do
-  useCache <- use_cache . config <$> getYesodSub
+  useCache <- use_cache <$> getConfig
   if useCache
      then do
        pathForPage page >>= expireCache
@@ -1210,7 +1220,7 @@ postExpireR page = do
 caching :: HasReps a
         => FilePath -> GHandler Gitit master a -> GHandler Gitit master a
 caching path handler = do
-  conf <- config <$> getYesodSub
+  conf <- getConfig
   if use_cache conf
      then do
        result <- handler
@@ -1221,7 +1231,7 @@ caching path handler = do
 
 cacheContent :: FilePath -> (ContentType, Content) -> GHandler Gitit master ()
 cacheContent path (ct, content) = do
-  conf <- config <$> getYesodSub
+  conf <- getConfig
   if use_cache conf
      then do
        case content of
@@ -1236,7 +1246,7 @@ cacheContent path (ct, content) = do
 
 tryCache :: FilePath -> GHandler Gitit master ()
 tryCache path = do
-  conf <- config <$> getYesodSub
+  conf <- getConfig
   if use_cache conf
      then do
        let fullpath = cache_dir conf </> path
@@ -1256,10 +1266,10 @@ tryCache path = do
 
 expireCache :: FilePath -> GHandler Gitit master ()
 expireCache path = do
-  conf <- config <$> getYesodSub
+  conf <- getConfig
   expireFeed (feed_minutes conf) (path </> "_feed")
   expireFeed (feed_minutes conf) "_feed"
-  cachedir <- cache_dir . config <$> getYesodSub
+  cachedir <- cache_dir <$> getConfig
   let fullpath = cachedir </> path
   liftIO $ do
     exists <- doesDirectoryExist fullpath
@@ -1268,7 +1278,7 @@ expireCache path = do
 -- | Expire the cached feed unless it is younger than 'minutes' old.
 expireFeed :: Integer -> FilePath -> GHandler Gitit master ()
 expireFeed minutes path = do
-  cachedir <- cache_dir . config <$> getYesodSub
+  cachedir <- cache_dir <$> getConfig
   let fullpath = cachedir </> path
   liftIO $ do
     exists <- doesDirectoryExist fullpath

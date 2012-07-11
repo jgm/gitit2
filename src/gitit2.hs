@@ -75,6 +75,7 @@ mimeTypes = M.fromList
 data Conf = Conf { cfg_port             :: Int
                  , cfg_listen_address   :: String
                  , cfg_wiki_path        :: FilePath
+                 , cfg_page_extension   :: FilePath
                  , cfg_default_format   :: Text
                  , cfg_static_dir       :: FilePath
                  , cfg_mime_types_file  :: Maybe FilePath
@@ -105,6 +106,7 @@ parseConfig o = Conf
   <$> o .:? "port" .!= 3000
   <*> o .:? "listen_address" .!= "0.0.0.0"
   <*> o .:? "wiki_path" .!= "wikidata"
+  <*> o .:? "page_extension" .!= ".page"
   <*> o .:? "default_format" .!= "markdown"
   <*> o .:? "static_dir" .!= "static"
   <*> o .:? "mime_types_file"
@@ -154,6 +156,7 @@ main = do
                                     mime_types = mimes
                                   , default_format = format
                                   , wiki_path = cfg_wiki_path conf
+                                  , page_extension = cfg_page_extension conf
                                   , use_mathjax = cfg_use_mathjax conf
                                   , feed_days  = cfg_feed_days conf
                                   , feed_minutes  = cfg_feed_minutes conf
