@@ -1,7 +1,7 @@
 Features to implement:
 
 _ preview in edit?
-_ configurable page extension
+x configurable page extension
 _ file upload:
   _ fill in getUploadR
   _ fill in postUploadR
