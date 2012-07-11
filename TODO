@@ -14,7 +14,7 @@ _ categories:
 _ plugins/interface
   _ lift the transformation to a transform on WikiPage
 _ config file [started]
-  _ make Front Page, Help configurable
+  x make Front Page, Help configurable
   _ implement page locking as in gitit
   _ command-line option to specify config file? (but what about rest of config dir?)
 _ site initialization

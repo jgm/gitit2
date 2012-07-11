@@ -84,6 +84,8 @@ data GititConfig = GititConfig{
      , pandoc_user_data :: Maybe FilePath           -- ^ Pandoc userdata directory
      , use_cache        :: Bool                     -- ^ Cache pages and files
      , cache_dir        :: FilePath                 -- ^ Path to cache
+     , front_page       :: Text                     -- ^ Front page of wiki
+     , help_page        :: Text                     -- ^ Help page
      }
 
 data HtmlMathMethod = UseMathML | UseMathJax | UsePlainMath
@@ -402,13 +404,15 @@ isSourceFile path' = do
   return $ not (null langs || takeExtension path' == ".svg")
                          -- allow svg to be served as image
 
--- TODO : make the front page configurable
 getHomeR :: HasGitit master => GHandler Gitit master RepHtml
-getHomeR = getViewR (Page ["Front Page"])
+getHomeR = do
+  conf <- getConfig
+  getViewR $ textToPage $ front_page conf
 
--- TODO : make the help page configurable
 getHelpR :: HasGitit master => GHandler Gitit master RepHtml
-getHelpR = getViewR (Page ["Help"])
+getHelpR = do
+  conf <- getConfig
+  getViewR $ textToPage $ help_page conf
 
 getRandomR :: HasGitit master => GHandler Gitit master RepHtml
 getRandomR = do
@@ -1239,7 +1243,9 @@ postUploadR = undefined
 ----------
 
 postExpireHomeR :: HasGitit master => GHandler Gitit master RepHtml
-postExpireHomeR = postExpireR (Page ["Front Page"]) -- TODO make configurable
+postExpireHomeR = do
+  conf <- getConfig
+  postExpireR $ textToPage $ front_page conf
 
 postExpireR :: HasGitit master => Page -> GHandler Gitit master RepHtml
 postExpireR page = do

@@ -8,3 +8,5 @@ use_mathjax: true
 feed_days: 14
 use_cache: true
 cache_dir: cache
+front_page: Front Page
+help_page: Help

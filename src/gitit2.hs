@@ -85,6 +85,8 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_pandoc_user_data :: Maybe FilePath
                  , cfg_use_cache        :: Bool
                  , cfg_cache_dir        :: FilePath
+                 , cfg_front_page       :: Text
+                 , cfg_help_page        :: Text
                  }
 
 -- | Read a file associating mime types with extensions, and return a
@@ -116,6 +118,8 @@ parseConfig o = Conf
   <*> o .:? "pandoc_user_data"
   <*> o .:? "use_cache" .!= False
   <*> o .:? "cache_dir" .!= "cache"
+  <*> o .:? "front_page" .!= "Front Page"
+  <*> o .:? "help_page" .!= "Help"
 
 err :: Int -> String -> IO a
 err code msg = do
@@ -163,6 +167,8 @@ main = do
                                   , pandoc_user_data = cfg_pandoc_user_data conf
                                   , use_cache = cfg_use_cache conf
                                   , cache_dir = cfg_cache_dir conf
+                                  , front_page = cfg_front_page conf
+                                  , help_page = cfg_help_page conf
                                   }
                     , filestore = fs
                     , getStatic = st
