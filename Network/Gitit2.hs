@@ -1195,7 +1195,15 @@ setFilename fname = setHeader "Content-Disposition"
 
 getUploadR :: HasGitit master => GHandler Gitit master RepHtml
 getUploadR = do
+  requireUser
   (form, enctype) <- generateFormPost $ uploadForm Nothing
+  showUploadForm enctype form
+
+showUploadForm :: HasGitit master
+               => Enctype
+               -> GWidget Gitit master ()
+               -> GHandler Gitit master RepHtml
+showUploadForm enctype form = do
   toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
@@ -1203,7 +1211,7 @@ getUploadR = do
     [whamlet|
       <h1>_{MsgUploadFile}</h1>
       <div #uploadform>
-        <form method=post action=@{toMaster $ UploadR} enctype=#{enctype}>
+        <form method=post action=@{toMaster UploadR} enctype=#{enctype}>
           ^{form}
           <input type=submit>
     |]
@@ -1218,21 +1226,31 @@ uploadForm :: HasGitit master
            => Maybe Upload
            -> Html
            -> MForm Gitit master (FormResult Upload, GWidget Gitit master ())
-uploadForm mbupload = renderDivs $ Upload
-    <$> fileAFormReq (fieldSettingsLabel MsgChangeDescription) -- TODO
-    <*> areq commentField (fieldSettingsLabel MsgChangeDescription) -- TODO
-           (uploadWikiname <$> mbupload)
-    <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
-           (uploadDescription <$> mbupload)
-    <*> areq boolField (fieldSettingsLabel MsgChangeDescription) -- TODO
-           (uploadOverwrite <$> mbupload)
-  where commentField = check validateNonempty textField
-        validateNonempty y
-          | T.null y = Left MsgValueRequired
-          | otherwise = Right y
+uploadForm mbupload =
+  renderDivs $ Upload
+     <$> fileAFormReq (fieldSettingsLabel MsgChangeDescription) -- TODO
+     <*> areq commentField (fieldSettingsLabel MsgChangeDescription) -- TODO
+            (uploadWikiname <$> mbupload)
+     <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
+            (uploadDescription <$> mbupload)
+     <*> areq boolField (fieldSettingsLabel MsgChangeDescription) -- TODO
+            (uploadOverwrite <$> mbupload)
+   where commentField = check validateNonempty textField
+         validateNonempty y
+           | T.null y = Left MsgValueRequired
+           | otherwise = Right y
 
 postUploadR :: HasGitit master => GHandler Gitit master RepHtml
-postUploadR = undefined
+postUploadR = do
+  user <- requireUser
+  ((result, widget), enctype) <- runFormPost $ uploadForm Nothing
+  fs <- filestore <$> getYesodSub
+  toMaster <- getRouteToMaster
+  case result of
+       FormSuccess r -> do
+         let page = Page ["Front Page"] -- placeholder TODO
+         redirect $ toMaster $ ViewR page
+       _             -> showUploadForm enctype widget
 
 ----------
 -- Caching
