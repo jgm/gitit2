@@ -74,7 +74,7 @@ mimeTypes = M.fromList
 
 data Conf = Conf { cfg_port             :: Int
                  , cfg_listen_address   :: String
-                 , cfg_wiki_path        :: FilePath
+                 , cfg_repository_path        :: FilePath
                  , cfg_page_extension   :: FilePath
                  , cfg_default_format   :: Text
                  , cfg_static_dir       :: FilePath
@@ -107,7 +107,7 @@ parseConfig :: Object -> Parser Conf
 parseConfig o = Conf
   <$> o .:? "port" .!= 3000
   <*> o .:? "listen_address" .!= "0.0.0.0"
-  <*> o .:? "wiki_path" .!= "wikidata"
+  <*> o .:? "repository_path" .!= "wikidata"
   <*> o .:? "page_extension" .!= ".page"
   <*> o .:? "default_format" .!= "markdown"
   <*> o .:? "static_dir" .!= "static"
@@ -136,7 +136,7 @@ main = do
   conf <- case res of
              Left e  -> err 3 $ "Error reading configuration file.\n" ++ e
              Right x -> parseMonad parseConfig x
-  let fs = gitFileStore $ cfg_wiki_path conf
+  let fs = gitFileStore $ cfg_repository_path conf
   st <- staticDevel $ cfg_static_dir conf
   mimes <- case cfg_mime_types_file conf of
                 Nothing -> return mimeTypes
@@ -159,7 +159,7 @@ main = do
       (Master (Gitit{ config    = GititConfig{
                                     mime_types = mimes
                                   , default_format = format
-                                  , wiki_path = cfg_wiki_path conf
+                                  , repository_path = cfg_repository_path conf
                                   , page_extension = cfg_page_extension conf
                                   , use_mathjax = cfg_use_mathjax conf
                                   , feed_days  = cfg_feed_days conf

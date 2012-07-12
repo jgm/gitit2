@@ -76,7 +76,7 @@ instance Yesod Gitit
 data GititConfig = GititConfig{
        mime_types       :: M.Map String ContentType -- ^ Table of mime types
      , default_format   :: PageFormat               -- ^ Default format for wiki pages
-     , wiki_path        :: FilePath                 -- ^ Path to wiki
+     , repository_path  :: FilePath                 -- ^ Path to wiki
      , page_extension   :: FilePath                 -- ^ Extension for page files
      , use_mathjax      :: Bool                     -- ^ Link to mathjax script
      , feed_days        :: Integer                  -- ^ Days back for feed entries
@@ -1175,7 +1175,7 @@ basicExport templ contentType writer = \wikiPage -> do
                 else return ""
   let rendered =  writer defaultWriterOptions{
                                   writerTemplate = template
-                                , writerSourceDirectory = wiki_path conf
+                                , writerSourceDirectory = repository_path conf
                                 , writerStandalone = True
                                 , writerLiterateHaskell = wpLHS wikiPage
                                 , writerTableOfContents = wpTOC wikiPage
@@ -1183,7 +1183,7 @@ basicExport templ contentType writer = \wikiPage -> do
                                 , writerVariables = ("dzslides-core",dzcore):vars }
         $ Pandoc (Meta (wpTitle wikiPage) [] []) $ wpContent wikiPage
   rendered' <- if contentType == typeHtml
-                  then liftIO $ inDirectory (wiki_path conf)
+                  then liftIO $ inDirectory (repository_path conf)
                        $ makeSelfContained (pandoc_user_data conf) rendered
                   else return rendered
   let content = toContent rendered'
