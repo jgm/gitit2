@@ -74,7 +74,8 @@ mimeTypes = M.fromList
 
 data Conf = Conf { cfg_port             :: Int
                  , cfg_listen_address   :: String
-                 , cfg_repository_path        :: FilePath
+                 , cfg_repository_path  :: FilePath
+                 , cfg_repository_type  :: Text
                  , cfg_page_extension   :: FilePath
                  , cfg_default_format   :: Text
                  , cfg_static_dir       :: FilePath
@@ -108,6 +109,7 @@ parseConfig o = Conf
   <$> o .:? "port" .!= 3000
   <*> o .:? "listen_address" .!= "0.0.0.0"
   <*> o .:? "repository_path" .!= "wikidata"
+  <*> o .:? "repository_type" .!= "git"
   <*> o .:? "page_extension" .!= ".page"
   <*> o .:? "default_format" .!= "markdown"
   <*> o .:? "static_dir" .!= "static"
@@ -136,7 +138,12 @@ main = do
   conf <- case res of
              Left e  -> err 3 $ "Error reading configuration file.\n" ++ e
              Right x -> parseMonad parseConfig x
-  let fs = gitFileStore $ cfg_repository_path conf
+  let repopath = cfg_repository_path conf
+  fs <- case T.toLower (cfg_repository_type conf) of
+             "git"       -> return $ gitFileStore repopath
+             "darcs"     -> return $ darcsFileStore repopath
+             "mercurial" -> return $ mercurialFileStore repopath
+             x           -> err 13 $ "Unknown repository type: " ++ T.unpack x
   st <- staticDevel $ cfg_static_dir conf
   mimes <- case cfg_mime_types_file conf of
                 Nothing -> return mimeTypes
