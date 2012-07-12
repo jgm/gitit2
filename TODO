@@ -1,5 +1,22 @@
 Features to implement:
 
+Michael Snoyman suggests that instead of using a static subsite,
+we do something like the following:
+
+   The only recommendation that comes to mind
+   would be to put some of the hard-coded static paths used in
+   makeDefaultLayout into the HasGitit typeclass, with sensible defaults.
+   That would theoretically make it much easier for users to override. In
+   the specific case of jQuery, you could use the existing YesodJquery
+   class from yesod-form. In general, the approach we take for these kinds
+   of typeclasses is to have methods like:
+   siteLogo :: master -> Either Text (Route master)
+   That way, the user can load the information from the master site
+   datatype if desired (which in turn means it can be in a config file),
+   and the `Either Text Route` lets the user either specify some external
+   URL or a type-safe URL.
+
+
 _ preview in edit?
 x configurable page extension
 _ file upload:
