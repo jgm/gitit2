@@ -16,6 +16,8 @@ we do something like the following:
    and the `Either Text Route` lets the user either specify some external
    URL or a type-safe URL.
 
+Better system validation/error handling in src/gitit2.hs.
+Use ErrorT or EitherT monad?
 
 _ preview in edit?
 x configurable page extension
