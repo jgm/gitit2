@@ -15,7 +15,7 @@ import System.Exit
 import Data.Text (Text)
 import qualified Data.Text as T
 
-data Master = Master { getGitit :: Gitit }
+data Master = Master { getGitit :: Gitit, maxUploadSize :: Int }
 mkYesod "Master" [parseRoutes|
 / SubsiteR Gitit getGitit
 |]
@@ -36,6 +36,7 @@ instance Yesod Master where
                <p.message>#{msg}
              ^{bodyTags}
         |]
+  maximumContentLength x _ = maxUploadSize x
 
 instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage
@@ -88,6 +89,7 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_cache_dir        :: FilePath
                  , cfg_front_page       :: Text
                  , cfg_help_page        :: Text
+                 , cfg_max_upload_size  :: String
                  }
 
 -- | Read a file associating mime types with extensions, and return a
@@ -122,6 +124,20 @@ parseConfig o = Conf
   <*> o .:? "cache_dir" .!= "cache"
   <*> o .:? "front_page" .!= "Front Page"
   <*> o .:? "help_page" .!= "Help"
+  <*> o .:? "max_upload_size" .!= "1M"
+
+readNumber :: String -> Maybe Int
+readNumber x = case reads x of
+                    ((n,""):_) -> Just n
+                    _          -> Nothing
+
+readSize :: String -> Maybe Int
+readSize x =
+  case reverse x of
+       ('K':xs) -> (* 1000) <$> readNumber (reverse xs)
+       ('M':xs) -> (* 1000000) <$> readNumber (reverse xs)
+       ('G':xs) -> (* 1000000000) <$> readNumber (reverse xs)
+       _        -> readNumber x
 
 err :: Int -> String -> IO a
 err code msg = do
@@ -160,6 +176,10 @@ main = do
                   Just f  -> return f
                   Nothing -> err 11 $ "Unknown default format: " ++
                                    T.unpack (cfg_default_format conf)
+  maxsize <- case readSize (cfg_max_upload_size conf) of
+                  Just s  -> return s
+                  Nothing -> err 17 $ "Could not read size: " ++
+                                      cfg_max_upload_size conf
   let settings = defaultSettings{ settingsPort = cfg_port conf }
   let runner = runSettingsSocket settings sock
   runner =<< toWaiApp
@@ -179,4 +199,5 @@ main = do
                                   }
                     , filestore = fs
                     , getStatic = st
-                    }))
+                    })
+              maxsize)

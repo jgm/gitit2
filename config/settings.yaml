@@ -11,3 +11,4 @@ use_cache: true
 cache_dir: cache
 front_page: Front Page
 help_page: Help
+max_upload_size: 1M
