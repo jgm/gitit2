@@ -1275,10 +1275,13 @@ postUploadR = do
             else do
               res <- liftIO $ try $ save fs path auth comm $ fileContent fileinfo
               case res of
-                   Left FS.Unchanged -> setMessageI MsgFileUnchanged >>
+                   Left FS.Unchanged -> do
+                                        setMessageI MsgFileUnchanged >>
                                         showUploadForm enctype widget
                    Left e            -> throw e
-                   Right _           -> redirect $ toMaster $ ViewR page
+                   Right _           -> do
+                                        expireCache path
+                                        redirect $ toMaster $ ViewR page
        _             -> showUploadForm enctype widget
 
 ----------
