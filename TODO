@@ -18,8 +18,6 @@ we do something like the following:
 
 _ preview in edit?
 x configurable page extension
-_ file upload:
-  _ validate to make sure path is not a page file path
 _ export:
   _ exporters for EPUB, PDF, DOCX, ODT
 _ categories:
