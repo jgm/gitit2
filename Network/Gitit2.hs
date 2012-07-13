@@ -45,7 +45,7 @@ import Text.Blaze.Html hiding (contents)
 import Blaze.ByteString.Builder (toLazyByteString)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, isJust)
 import System.Random (randomRIO)
 import Control.Exception (throw, handle, try)
 import Text.Highlighting.Kate
@@ -249,6 +249,7 @@ makeDefaultPage layout content = do
       tabClass t = if t == pgSelectedTab layout then "selected" else ""
   let showTab t = t `elem` pgTabs layout
   printLayout <- lookupGetParam "print"
+  exportFormats <- getExportFormats
   defaultLayout $ do
     addStylesheet $ toMaster $ StaticR $
       case printLayout of
@@ -1103,6 +1104,7 @@ feed mbpage = do
 postExportR :: HasGitit master
             => Page -> GHandler Gitit master (ContentType, Content)
 postExportR page = do
+  exportFormats <- getExportFormats
   format <- runInputPost (ireq textField "format")
   case lookup format exportFormats of
          Nothing -> fail "Unrecognized format"
@@ -1123,34 +1125,39 @@ postExportR page = do
 -- handle math in html formats
 -- other slide show issues (e.g. dzslides core)
 -- add pdf, docx, odt, epub
-exportFormats :: [(Text, (Text, WikiPage -> GHandler Gitit master (ContentType,Content)))]
-exportFormats =
-  [ ("Groff man", (".1", basicExport "man" typePlain writeMan))
-  , ("reStructuredText", (".txt", basicExport "rst" typePlain writeRST))
-  , ("Markdown", (".txt", basicExport "markdown" typePlain writeMarkdown))
-  , ("Textile", (".txt", basicExport "textile" typePlain writeTextile))
-  , ("Plain text", (".txt", basicExport "plain" typePlain writePlain))
-  , ("Org-mode", (".org", basicExport "org" typePlain writeOrg))
-  , ("Asciidoc", (".txt", basicExport "asciidoc" typePlain writeAsciiDoc))
-  , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain writeMediaWiki))
-  , ("HTML", (".html", basicExport "html" typeHtml writeHtmlString))
-  , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
-              writeHtmlString opts{ writerHtml5 = True }))
-  , ("S5", (".html", basicExport "s5" typeHtml $ \opts ->
-              writeHtmlString opts{ writerSlideVariant = S5Slides }))
-  , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
-              writeHtmlString opts{ writerSlideVariant = SlidySlides }))
-  , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts ->
-              writeHtmlString opts{ writerSlideVariant = DZSlides
-                            , writerHtml5 = True }))
-  , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" writeLaTeX))
-  , ("Beamer", (".tex", basicExport "beamer" "application/x-latex" writeLaTeX))
-  , ("ConTeXt", (".tex", basicExport "context" "application/x-context" writeConTeXt))
-  , ("DocBook", (".xml", basicExport "docbook" "application/docbook+xml" writeDocbook))
-  , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text" writeOpenDocument))
-  , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" writeTexinfo))
-  , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTF))
-  ]
+getExportFormats :: GHandler Gitit master [(Text, (Text, WikiPage -> GHandler Gitit master (ContentType,Content)))]
+getExportFormats = do
+  conf <- getConfig
+  return $
+    [ ("Asciidoc", (".txt", basicExport "asciidoc" typePlain writeAsciiDoc))
+    , ("Beamer", (".tex", basicExport "beamer" "application/x-latex" writeLaTeX))
+    , ("ConTeXt", (".tex", basicExport "context" "application/x-context" writeConTeXt))
+    , ("DocBook", (".xml", basicExport "docbook" "application/docbook+xml" writeDocbook))
+    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts ->
+                writeHtmlString opts{ writerSlideVariant = DZSlides
+                              , writerHtml5 = True }))
+    , ("Groff man", (".1", basicExport "man" typePlain writeMan))
+    , ("HTML", (".html", basicExport "html" typeHtml writeHtmlString))
+    , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
+                writeHtmlString opts{ writerHtml5 = True }))
+    , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" writeLaTeX))
+    , ("Markdown", (".txt", basicExport "markdown" typePlain writeMarkdown))
+    , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain writeMediaWiki))
+    , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text" writeOpenDocument))
+    , ("Org-mode", (".org", basicExport "org" typePlain writeOrg))
+    ] ++
+    [ ("PDF", (".pdf", pdfExport)) | isJust (latex_engine conf) ]
+    ++
+    [ ("Plain text", (".txt", basicExport "plain" typePlain writePlain))
+    , ("reStructuredText", (".txt", basicExport "rst" typePlain writeRST))
+    , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTF))
+    , ("Textile", (".txt", basicExport "textile" typePlain writeTextile))
+    , ("S5", (".html", basicExport "s5" typeHtml $ \opts ->
+                writeHtmlString opts{ writerSlideVariant = S5Slides }))
+    , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
+                writeHtmlString opts{ writerSlideVariant = SlidySlides }))
+    , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" writeTexinfo))
+    ]
 
 basicExport :: String -> ContentType -> (WriterOptions -> Pandoc -> String)
             -> WikiPage -> GHandler Gitit master (ContentType, Content)
@@ -1189,6 +1196,10 @@ basicExport templ contentType writer = \wikiPage -> do
                   else return rendered
   let content = toContent rendered'
   return (contentType, content)
+
+pdfExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
+pdfExport page = do
+  fail "not implemented"
 
 setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"
