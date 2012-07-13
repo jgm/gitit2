@@ -86,6 +86,7 @@ data GititConfig = GititConfig{
      , cache_dir        :: FilePath                 -- ^ Path to cache
      , front_page       :: Text                     -- ^ Front page of wiki
      , help_page        :: Text                     -- ^ Help page
+     , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
      }
 
 data HtmlMathMethod = UseMathML | UseMathJax | UsePlainMath
@@ -1276,7 +1277,7 @@ postUploadR = do
               res <- liftIO $ try $ save fs path auth comm $ fileContent fileinfo
               case res of
                    Left FS.Unchanged -> do
-                                        setMessageI MsgFileUnchanged >>
+                                        setMessageI MsgFileUnchanged
                                         showUploadForm enctype widget
                    Left e            -> throw e
                    Right _           -> do

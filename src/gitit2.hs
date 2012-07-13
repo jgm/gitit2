@@ -90,6 +90,7 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_front_page       :: Text
                  , cfg_help_page        :: Text
                  , cfg_max_upload_size  :: String
+                 , cfg_latex_engine     :: Maybe FilePath
                  }
 
 -- | Read a file associating mime types with extensions, and return a
@@ -125,6 +126,7 @@ parseConfig o = Conf
   <*> o .:? "front_page" .!= "Front Page"
   <*> o .:? "help_page" .!= "Help"
   <*> o .:? "max_upload_size" .!= "1M"
+  <*> o .:? "latex_engine"
 
 readNumber :: String -> Maybe Int
 readNumber x = case reads x of
@@ -180,6 +182,7 @@ main = do
                   Just s  -> return s
                   Nothing -> err 17 $ "Could not read size: " ++
                                       cfg_max_upload_size conf
+
   let settings = defaultSettings{ settingsPort = cfg_port conf }
   let runner = runSettingsSocket settings sock
   runner =<< toWaiApp
@@ -196,6 +199,7 @@ main = do
                                   , cache_dir = cfg_cache_dir conf
                                   , front_page = cfg_front_page conf
                                   , help_page = cfg_help_page conf
+                                  , latex_engine = cfg_latex_engine conf
                                   }
                     , filestore = fs
                     , getStatic = st
