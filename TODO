@@ -20,7 +20,6 @@ _ preview in edit?
 x configurable page extension
 _ file upload:
   _ check max upload size
-  _ javascript to automatically populate wikiname field
   _ check original gitit handler for other details
 _ export:
   _ exporters for EPUB, PDF, DOCX, ODT

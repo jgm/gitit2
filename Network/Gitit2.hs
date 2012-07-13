@@ -1208,6 +1208,14 @@ showUploadForm enctype form = do
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
+    toWidget $ [julius|
+      $(document).ready(function(){
+          $("#file").change(function () {
+            var fn = $(this).val().replace(/.*\\/,"");
+            $("#wikiname").val(fn);
+          });
+        });
+    |]
     [whamlet|
       <h1>_{MsgUploadFile}</h1>
       <div #uploadform>
@@ -1228,9 +1236,10 @@ uploadForm :: HasGitit master
            -> MForm Gitit master (FormResult Upload, GWidget Gitit master ())
 uploadForm mbupload =
   renderDivs $ Upload
-     <$> fileAFormReq (fieldSettingsLabel MsgFileToUpload)
-     <*> areq pageField (fieldSettingsLabel MsgWikiName)
-            (uploadWikiname <$> mbupload)
+     <$> fileAFormReq (fieldSettingsLabel MsgFileToUpload){
+                fsId = Just "file" }
+     <*> areq pageField (fieldSettingsLabel MsgWikiName){
+                fsId = Just "wikiname" } (uploadWikiname <$> mbupload)
      <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
             (uploadDescription <$> mbupload)
      <*> areq checkBoxField (fieldSettingsLabel MsgOverwrite)
