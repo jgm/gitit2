@@ -1136,6 +1136,7 @@ getExportFormats = do
     , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts ->
                 writeHtmlString opts{ writerSlideVariant = DZSlides
                               , writerHtml5 = True }))
+    , ("EPUB", (".epub", epubExport))
     , ("Groff man", (".1", basicExport "man" typePlain writeMan))
     , ("HTML", (".html", basicExport "html" typeHtml writeHtmlString))
     , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
@@ -1143,6 +1144,7 @@ getExportFormats = do
     , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" writeLaTeX))
     , ("Markdown", (".txt", basicExport "markdown" typePlain writeMarkdown))
     , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain writeMediaWiki))
+    , ("ODT", (".odt", odtExport))
     , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text" writeOpenDocument))
     , ("Org-mode", (".org", basicExport "org" typePlain writeOrg))
     ] ++
@@ -1157,6 +1159,7 @@ getExportFormats = do
     , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
                 writeHtmlString opts{ writerSlideVariant = SlidySlides }))
     , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" writeTexinfo))
+    , ("Word docx", (".docx", docxExport))
     ]
 
 basicExport :: String -> ContentType -> (WriterOptions -> Pandoc -> String)
@@ -1197,9 +1200,21 @@ basicExport templ contentType writer = \wikiPage -> do
   let content = toContent rendered'
   return (contentType, content)
 
+-- TODO
 pdfExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
-pdfExport page = do
-  fail "not implemented"
+pdfExport page = fail "not implemented"
+
+-- TODO
+odtExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
+odtExport page = fail "not implemented"
+
+-- TODO
+docxExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
+docxExport page = fail "not implemented"
+
+-- TODO
+epubExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
+epubExport page = fail "not implemented"
 
 setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"
