@@ -110,6 +110,9 @@ div#categoryList { padding: 0em; margin: 1em 0 0 0; border: 1px dashed #ccc; }
 #goform { padding: 0; margin: 0.3em 0 0.5em 0.4em; }
 #goform input[type='text'] { width: 8.5em; border: 1px solid #ccc; }
 
+div.errors { color: red;  font-weight: bold; }
+p.message { color: red; font-weight: bold; }
+
 .search_result { margin-bottom: 15px; }
 .search_result .match { margin-bottom: 15px; }
 
@@ -123,8 +126,6 @@ span.deleted { text-decoration: line-through; color: gray; }
 
 /* .req is used to hide a honeypot in a form */
 .req { display: none; }
-
-p.message { color: red; font-weight: bold; margin-left: 160px; }
 
 ul.tabs { padding: 0; margin: 0 0 1px 0; }
 ul.tabs li { display: inline; border: 1px solid #ccc; border-bottom: none; padding: 0 0.6em 0 0.6em;

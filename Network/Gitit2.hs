@@ -1229,7 +1229,7 @@ uploadForm :: HasGitit master
 uploadForm mbupload =
   renderDivs $ Upload
      <$> fileAFormReq (fieldSettingsLabel MsgFileToUpload)
-     <*> areq commentField (fieldSettingsLabel MsgWikiName)
+     <*> areq pageField (fieldSettingsLabel MsgWikiName)
             (uploadWikiname <$> mbupload)
      <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
             (uploadDescription <$> mbupload)
@@ -1239,6 +1239,11 @@ uploadForm mbupload =
          validateNonempty y
            | T.null y = Left MsgValueRequired
            | otherwise = Right y
+         pageField = check validatePage textField
+         validatePage x = case fromPathMultiPiece (T.splitOn "/" x) of
+                                Just (_ :: Page) -> Right x
+                                Nothing          -> Left MsgInvalidPageName
+
 
 postUploadR :: HasGitit master => GHandler Gitit master RepHtml
 postUploadR = do
@@ -1248,8 +1253,23 @@ postUploadR = do
   toMaster <- getRouteToMaster
   case result of
        FormSuccess r -> do
-         let page = Page ["Front Page"] -- placeholder TODO
-         redirect $ toMaster $ ViewR page
+         let fileinfo = uploadFile r
+         let page = textToPage $ uploadWikiname r
+         let auth = Author (gititUserName user) (gititUserEmail user)
+         let comm = T.unpack $ uploadDescription r
+         path <- pathForFile page
+         allfiles <- liftIO $ index fs
+         if path `elem` allfiles && not (uploadOverwrite r)
+            then do
+              setMessageI MsgFileExists
+              showUploadForm enctype widget
+            else do
+              res <- liftIO $ try $ save fs path auth comm $ fileContent fileinfo
+              case res of
+                   Left FS.Unchanged -> setMessageI MsgFileUnchanged >>
+                                        showUploadForm enctype widget
+                   Left e            -> throw e
+                   Right _           -> redirect $ toMaster $ ViewR page
        _             -> showUploadForm enctype widget
 
 ----------
