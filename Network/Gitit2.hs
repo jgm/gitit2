@@ -1129,45 +1129,60 @@ postExportR page = do
 -- fix mime types
 -- handle math in html formats
 -- other slide show issues (e.g. dzslides core)
--- add pdf, docx, odt, epub
+-- add pdf, docx, odt, epu
+
+pureWriter :: (WriterOptions -> Pandoc -> String) -> WriterOptions -> Pandoc -> IO String
+pureWriter w opts d = return $ w opts d
+
+toSelfContained :: FilePath -> Maybe FilePath -> String -> IO String
+toSelfContained repopath userdata cont =
+  inDirectory repopath $ makeSelfContained userdata cont
+
 getExportFormats :: GHandler Gitit master [(Text, (Text, WikiPage -> GHandler Gitit master (ContentType,Content)))]
 getExportFormats = do
   conf <- getConfig
+  let repopath = repository_path conf
+  let userdata = pandoc_user_data conf
+  let selfcontained = toSelfContained repopath userdata
   return $
-    [ ("Asciidoc", (".txt", basicExport "asciidoc" typePlain writeAsciiDoc))
-    , ("Beamer", (".tex", basicExport "beamer" "application/x-latex" writeLaTeX))
-    , ("ConTeXt", (".tex", basicExport "context" "application/x-context" writeConTeXt))
-    , ("DocBook", (".xml", basicExport "docbook" "application/docbook+xml" writeDocbook))
-    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts ->
+    [ ("Asciidoc", (".txt", basicExport "asciidoc" typePlain $ pureWriter writeAsciiDoc))
+    , ("Beamer", (".tex", basicExport "beamer" "application/x-latex" $ pureWriter writeLaTeX))
+    , ("ConTeXt", (".tex", basicExport "context" "application/x-context" $ pureWriter writeConTeXt))
+    , ("DocBook", (".xml", basicExport "docbook" "application/docbook+xml" $ pureWriter writeDocbook))
+    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts -> selfcontained .
                 writeHtmlString opts{ writerSlideVariant = DZSlides
                               , writerHtml5 = True }))
-    , ("EPUB", (".epub", epubExport))
-    , ("Groff man", (".1", basicExport "man" typePlain writeMan))
-    , ("HTML", (".html", basicExport "html" typeHtml writeHtmlString))
+    , ("EPUB", (".epub", basicExport "epub" "application/xhtml+xml" $ writeEPUB Nothing []))
+    , ("Groff man", (".1", basicExport "man" typePlain $ pureWriter writeMan))
+    , ("HTML", (".html", basicExport "html" typeHtml $ \opts -> selfcontained . writeHtmlString opts))
     , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
-                writeHtmlString opts{ writerHtml5 = True }))
-    , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" writeLaTeX))
-    , ("Markdown", (".txt", basicExport "markdown" typePlain writeMarkdown))
-    , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain writeMediaWiki))
-    , ("ODT", (".odt", odtExport))
-    , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text" writeOpenDocument))
-    , ("Org-mode", (".org", basicExport "org" typePlain writeOrg))
-    ] ++
-    [ ("PDF", (".pdf", pdfExport)) | isJust (latex_engine conf) ]
-    ++
-    [ ("Plain text", (".txt", basicExport "plain" typePlain writePlain))
-    , ("reStructuredText", (".txt", basicExport "rst" typePlain writeRST))
-    , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTF))
-    , ("Textile", (".txt", basicExport "textile" typePlain writeTextile))
+                   selfcontained . writeHtmlString opts{ writerHtml5 = True }))
+    , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" $ pureWriter writeLaTeX))
+    , ("Markdown", (".txt", basicExport "markdown" typePlain $ pureWriter writeMarkdown))
+    , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain $ pureWriter writeMediaWiki))
+--    , ("ODT", (".odt", odtExport))
+    , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text"
+                   $ pureWriter writeOpenDocument))
+    , ("Org-mode", (".org", basicExport "org" typePlain $ pureWriter writeOrg))
+--    ] ++
+--    [ ("PDF", (".pdf", pdfExport)) | isJust (latex_engine conf) ]
+--    ++
+--    [ 
+    , ("Plain text", (".txt", basicExport "plain" typePlain $ pureWriter writePlain))
+    , ("reStructuredText", (".txt", basicExport "rst" typePlain $ pureWriter writeRST))
+    , ("RTF", (".rtf", basicExport "rtf" "application/rtf" $ \opts d ->
+                   writeRTF opts <$> bottomUpM rtfEmbedImage d))
+    , ("Textile", (".txt", basicExport "textile" typePlain $ pureWriter writeTextile))
     , ("S5", (".html", basicExport "s5" typeHtml $ \opts ->
-                writeHtmlString opts{ writerSlideVariant = S5Slides }))
+                selfcontained . writeHtmlString opts{ writerSlideVariant = S5Slides }))
     , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
-                writeHtmlString opts{ writerSlideVariant = SlidySlides }))
-    , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" writeTexinfo))
-    , ("Word docx", (".docx", docxExport))
+                selfcontained . writeHtmlString opts{ writerSlideVariant = SlidySlides }))
+    , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" $ pureWriter writeTexinfo))
+--    , ("Word docx", (".docx", docxExport))
     ]
 
-basicExport :: String -> ContentType -> (WriterOptions -> Pandoc -> String)
+basicExport :: ToContent a
+            => String -> ContentType -> (WriterOptions -> Pandoc -> IO a)
             -> WikiPage -> GHandler Gitit master (ContentType, Content)
 basicExport templ contentType writer = \wikiPage -> do
   conf <- getConfig
@@ -1189,21 +1204,17 @@ basicExport templ contentType writer = \wikiPage -> do
                       $ dropWhile (not . isPrefixOf "<!-- {{{{ dzslides core")
                       $ lines dztempl
                 else return ""
-  let rendered =  writer defaultWriterOptions{
-                                  writerTemplate = template
-                                , writerSourceDirectory = repository_path conf
-                                , writerStandalone = True
-                                , writerLiterateHaskell = wpLHS wikiPage
-                                , writerTableOfContents = wpTOC wikiPage
-                                , writerHTMLMathMethod = MathML Nothing
-                                , writerVariables = ("dzslides-core",dzcore):vars }
-        $ Pandoc (Meta (wpTitle wikiPage) [] []) $ wpContent wikiPage
-  rendered' <- if contentType == typeHtml
-                  then liftIO $ inDirectory (repository_path conf)
-                       $ makeSelfContained (pandoc_user_data conf) rendered
-                  else return rendered
-  let content = toContent rendered'
-  return (contentType, content)
+  rendered <- liftIO
+              $ writer defaultWriterOptions{
+                         writerTemplate = template
+                       , writerSourceDirectory = repository_path conf
+                       , writerStandalone = True
+                       , writerLiterateHaskell = wpLHS wikiPage
+                       , writerTableOfContents = wpTOC wikiPage
+                       , writerHTMLMathMethod = MathML Nothing
+                       , writerVariables = ("dzslides-core",dzcore):vars }
+              $ Pandoc (Meta (wpTitle wikiPage) [] []) $ wpContent wikiPage
+  return (contentType, toContent rendered)
 
 -- TODO
 pdfExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
@@ -1216,10 +1227,6 @@ odtExport page = fail "not implemented"
 -- TODO
 docxExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
 docxExport page = fail "not implemented"
-
--- TODO
-epubExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
-epubExport page = fail "not implemented"
 
 setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"
