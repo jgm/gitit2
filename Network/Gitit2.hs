@@ -330,6 +330,11 @@ convertWikiLinks (Link ref ("", "")) = do
   toUrl <- getUrlRender
   let route = ViewR $ textToPage $ T.pack $ stringify ref
   return $ Link ref (T.unpack $ toUrl $ toMaster route, "")
+convertWikiLinks (Image ref ("", "")) = do
+  toMaster <- getRouteToMaster
+  toUrl <- getUrlRender
+  let route = ViewR $ textToPage $ T.pack $ stringify ref
+  return $ Image ref (T.unpack $ toUrl $ toMaster route, "")
 convertWikiLinks x = return x
 
 addWikiLinks :: Pandoc -> GHandler Gitit master Pandoc
@@ -345,7 +350,7 @@ sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
         sanitizeInline (Code (id',classes,attrs) x) =
           Code (id', classes, sanitizeAttrs attrs) x
         sanitizeInline (Link lab (src,tit)) = Link lab (sanitizeURI src,tit)
-        sanitizeInline (Image alt (src,tit)) = Link alt (sanitizeURI src,tit)
+        sanitizeInline (Image alt (src,tit)) = Image alt (sanitizeURI src,tit)
         sanitizeInline x = x
         sanitizeURI src = case sanitizeAttribute ("href", T.pack src) of
                                Just (_,z) -> T.unpack z
