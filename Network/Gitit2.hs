@@ -1228,12 +1228,12 @@ uploadForm :: HasGitit master
            -> MForm Gitit master (FormResult Upload, GWidget Gitit master ())
 uploadForm mbupload =
   renderDivs $ Upload
-     <$> fileAFormReq (fieldSettingsLabel MsgChangeDescription) -- TODO
-     <*> areq commentField (fieldSettingsLabel MsgChangeDescription) -- TODO
+     <$> fileAFormReq (fieldSettingsLabel MsgFileToUpload)
+     <*> areq commentField (fieldSettingsLabel MsgWikiName)
             (uploadWikiname <$> mbupload)
      <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
             (uploadDescription <$> mbupload)
-     <*> areq boolField (fieldSettingsLabel MsgChangeDescription) -- TODO
+     <*> areq checkBoxField (fieldSettingsLabel MsgOverwrite)
             (uploadOverwrite <$> mbupload)
    where commentField = check validateNonempty textField
          validateNonempty y

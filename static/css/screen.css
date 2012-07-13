@@ -102,6 +102,11 @@ div#categoryList { padding: 0em; margin: 1em 0 0 0; border: 1px dashed #ccc; }
 #editform input[type='text'] { width: 98%; }
 #editform #logMsg { width: 98%; margin-right: 1em; margin-bottom: 0.3em; }
 
+#uploadform input[type='text'] { width: 98%; }
+#uploadform label { margin-top: 0.6em; }
+#uploadform label { margin-top: 0.6em; }
+#uploadform input[type='submit'] { margin-top: 0.6em; }
+
 #goform { padding: 0; margin: 0.3em 0 0.5em 0.4em; }
 #goform input[type='text'] { width: 8.5em; border: 1px solid #ccc; }
 

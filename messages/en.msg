@@ -29,3 +29,6 @@ NewPage page@Page:  There is no page #{page}.  Create it by editing below.
 DragDiff: Drag one revision onto another to see differences.
 SiteFeedTitle:  Recent changes to the wiki.
 PageFeedTitle page@Page:  Recent changes to #{page}.
+FileToUpload: File to upload
+WikiName: Name in wiki
+Overwrite: Overwrite existing file
