@@ -29,6 +29,7 @@ import Data.FileStore as FS
 import Data.Char (toLower)
 import System.FilePath
 import Text.Pandoc
+import Text.Pandoc.PDF (tex2pdf)
 import Text.Pandoc.Shared (stringify, inDirectory, readDataFile)
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
@@ -1152,7 +1153,8 @@ getExportFormats = do
     , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts -> selfcontained .
                 writeHtmlString opts{ writerSlideVariant = DZSlides
                               , writerHtml5 = True }))
-    , ("EPUB", (".epub", basicExport "epub" "application/xhtml+xml" $ writeEPUB Nothing []))
+    , ("EPUB", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts ->
+                 inDirectory repopath . writeEPUB Nothing [] opts))
     , ("Groff man", (".1", basicExport "man" typePlain $ pureWriter writeMan))
     , ("HTML", (".html", basicExport "html" typeHtml $ \opts -> selfcontained . writeHtmlString opts))
     , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
@@ -1160,15 +1162,18 @@ getExportFormats = do
     , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" $ pureWriter writeLaTeX))
     , ("Markdown", (".txt", basicExport "markdown" typePlain $ pureWriter writeMarkdown))
     , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain $ pureWriter writeMediaWiki))
---    , ("ODT", (".odt", odtExport))
+    , ("ODT", (".odt", basicExport "opendocument" "application/vnd.oasis.opendocument.text"
+             $ \opts -> inDirectory repopath . writeODT Nothing opts))
     , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text"
                    $ pureWriter writeOpenDocument))
-    , ("Org-mode", (".org", basicExport "org" typePlain $ pureWriter writeOrg))
---    ] ++
---    [ ("PDF", (".pdf", pdfExport)) | isJust (latex_engine conf) ]
---    ++
---    [ 
-    , ("Plain text", (".txt", basicExport "plain" typePlain $ pureWriter writePlain))
+    , ("Org-mode", (".org", basicExport "org" typePlain $ pureWriter writeOrg)) ] ++
+    [ ("PDF", (".pdf", basicExport "latex" "application/pdf" $ \opts d ->
+                   inDirectory repopath $ tex2pdf (maybe "pdflatex" id $
+                     latex_engine conf) (writeLaTeX opts d) >>= \res ->
+                       case res of
+                         Left e    -> error $ "Could not produce PDF: " ++ toString e
+                         Right pdf -> return pdf)) | isJust (latex_engine conf) ] ++
+    [ ("Plain text", (".txt", basicExport "plain" typePlain $ pureWriter writePlain))
     , ("reStructuredText", (".txt", basicExport "rst" typePlain $ pureWriter writeRST))
     , ("RTF", (".rtf", basicExport "rtf" "application/rtf" $ \opts d ->
                    writeRTF opts <$> bottomUpM rtfEmbedImage d))
@@ -1178,7 +1183,9 @@ getExportFormats = do
     , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
                 selfcontained . writeHtmlString opts{ writerSlideVariant = SlidySlides }))
     , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" $ pureWriter writeTexinfo))
---    , ("Word docx", (".docx", docxExport))
+    , ("Word docx", (".docx", basicExport "docx"
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            $ \opts -> inDirectory repopath . writeDocx Nothing opts))
     ]
 
 basicExport :: ToContent a
@@ -1215,18 +1222,6 @@ basicExport templ contentType writer = \wikiPage -> do
                        , writerVariables = ("dzslides-core",dzcore):vars }
               $ Pandoc (Meta (wpTitle wikiPage) [] []) $ wpContent wikiPage
   return (contentType, toContent rendered)
-
--- TODO
-pdfExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
-pdfExport page = fail "not implemented"
-
--- TODO
-odtExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
-odtExport page = fail "not implemented"
-
--- TODO
-docxExport :: WikiPage -> GHandler Gitit master (ContentType, Content)
-docxExport page = fail "not implemented"
 
 setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"

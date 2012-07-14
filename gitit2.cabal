@@ -103,6 +103,7 @@ executable gitit2
                  , bytestring                    >= 0.9        && < 1.0
                  , warp                          >= 1.2        && < 1.3
                  , text                          >= 0.11       && < 0.12
+                 , directory                     >= 1.1        && < 1.2
                  , network                       >= 2.3        && < 2.4
                  , gitit2
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
