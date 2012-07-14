@@ -17,9 +17,6 @@ we do something like the following:
    URL or a type-safe URL.
 
 _ preview in edit?
-x configurable page extension
-_ export:
-  _ exporters for EPUB, PDF, DOCX, ODT
 _ categories:
   _ show categories in view
   _ handlers for individual categories
