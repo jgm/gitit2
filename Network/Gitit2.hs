@@ -34,7 +34,7 @@ import Text.Pandoc.Shared (stringify, inDirectory, readDataFile)
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
-import Control.Monad (when, unless, filterM, mplus)
+import Control.Monad (when, unless, filterM, mplus, guard)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
@@ -1382,12 +1382,11 @@ tryCache path = do
      then do
        let fullpath = cache_dir conf </> path
        exists <- liftIO $ doesDirectoryExist fullpath
-       let isDotFile ('.':_) = True
-           isDotFile _       = False
        if exists
           then do
-            files <- liftIO $ getDirectoryContents fullpath
-            case filter (not . isDotFile) files of
+            files <- liftIO $ getDirectoryContents fullpath >>=
+                               filterM (doesFileExist . (fullpath </>))
+            case files of
                  (x:_) -> do
                     let ct = BSU.fromString $ urlDecode x
                     sendFile ct $ fullpath </> x
@@ -1400,11 +1399,19 @@ expireCache path = do
   conf <- getConfig
   expireFeed (feed_minutes conf) (path </> "_feed")
   expireFeed (feed_minutes conf) "_feed"
+  expireCategories
   cachedir <- cache_dir <$> getConfig
   let fullpath = cachedir </> path
   liftIO $ do
     exists <- doesDirectoryExist fullpath
     when exists $ removeDirectoryRecursive fullpath
+
+expireCategories :: GHandler Gitit master ()
+expireCategories = do
+  cachedir <- cache_dir <$> getConfig
+  let fullpath = cachedir </> "_categories"
+  liftIO $ doesDirectoryExist cachedir >>= guard >>
+           removeDirectoryRecursive cachedir
 
 -- | Expire the cached feed unless it is younger than 'minutes' old.
 expireFeed :: Integer -> FilePath -> GHandler Gitit master ()
@@ -1427,14 +1434,16 @@ expireFeed minutes path = do
 
 getCategoriesR :: HasGitit master => GHandler Gitit master RepHtml
 getCategoriesR = do
+  tryCache "_categories"
   conf <- getConfig
   toMaster <- getRouteToMaster
   let repopath = repository_path conf
   allpages <- map (repopath </>) <$> allPageFiles
   allcategories <- liftIO $ nub . sort . concat <$> mapM readCategories allpages
-  makePage pageLayout{ pgName = Nothing
-                     , pgTabs = []
-                     , pgSelectedTab = EditTab } $ do
+  caching "_categories" $
+    makePage pageLayout{ pgName = Nothing
+                       , pgTabs = []
+                       , pgSelectedTab = EditTab } $ do
     [whamlet|
       <h1>_{MsgCategories}</h1>
       <ul>
@@ -1444,15 +1453,18 @@ getCategoriesR = do
 
 getCategoryR :: HasGitit master => Text -> GHandler Gitit master RepHtml
 getCategoryR category = do
+  let cachepage = "_categories" </> T.unpack category
+  tryCache cachepage
   conf <- getConfig
   toMaster <- getRouteToMaster
   let repopath = repository_path conf
   allpages <- allPageFiles
   let hasCategory pg = elem category <$> readCategories (repopath </> pg)
   matchingpages <- mapM pageForPath =<< (sort <$> filterM (liftIO . hasCategory) allpages)
-  makePage pageLayout{ pgName = Nothing
-                     , pgTabs = []
-                     , pgSelectedTab = EditTab } $ do
+  caching cachepage $
+    makePage pageLayout{ pgName = Nothing
+                       , pgTabs = []
+                       , pgSelectedTab = EditTab } $ do
     [whamlet|
       <h1>_{MsgCategory}: #{category}</h1>
       <ul.index>

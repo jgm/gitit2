@@ -18,7 +18,6 @@ we do something like the following:
 
 _ preview in edit?
 _ categories:
-  _ handlers for individual categories
   _ caching for categories and indiv category pages, expired on any page change?
 _ plugins/interface
   _ lift the transformation to a transform on WikiPage
