@@ -510,8 +510,10 @@ view mbrev page = do
   mbcont <- getRawContents path mbrev
   case mbcont of
        Just contents -> do
-         htmlContents <- contentsToWikiPage page contents >>= pageToHtml
-         caching path $ layout [ViewTab,EditTab,HistoryTab,DiscussTab] htmlContents
+         wikipage <- contentsToWikiPage page contents
+         htmlContents <- pageToHtml wikipage
+         caching path $ layout [ViewTab,EditTab,HistoryTab,DiscussTab]
+                            (wpCategories wikipage) htmlContents
        Nothing -> do
          path' <- pathForFile page
          mbcont' <- getRawContents path' mbrev
@@ -523,12 +525,12 @@ view mbrev page = do
               Just contents
                | is_source -> do
                    htmlContents <- sourceToHtml path' contents
-                   caching path' $ layout [ViewTab,HistoryTab] htmlContents
+                   caching path' $ layout [ViewTab,HistoryTab] [] htmlContents
                | otherwise -> do
                   ct <- getMimeType path'
                   let content = toContent contents
                   caching path' (return (ct, content)) >>= sendResponse
-   where layout tabs cont = do
+   where layout tabs categories cont = do
            toMaster <- getRouteToMaster
            makePage pageLayout{ pgName = Just page
                               , pgPageTools = True
@@ -552,6 +554,10 @@ view mbrev page = do
                          $maybe rev <- mbrev
                            <h2 .revision>#{rev}
                          ^{toWikiPage cont}
+                         <div#categories>
+                           <ul>
+                             $forall category <- categories
+                               <li><a href=@{toMaster $ CategoryR category}>#{category}
                        |]
 
 getIndexBaseR :: HasGitit master => GHandler Gitit master RepHtml
@@ -1430,7 +1436,7 @@ getCategoryR category = do
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
     [whamlet|
-      <h1>_{MsgCategory} #{category}</h1>
+      <h1>_{MsgCategory}: #{category}</h1>
     |]
 
 
