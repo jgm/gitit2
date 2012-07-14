@@ -1414,8 +1414,8 @@ expireCategories = do
   cachedir <- cache_dir <$> getConfig
   let fullpath = cachedir </> "_categories"
   liftIO $ do
-    exists <- doesDirectoryExist cachedir
-    when exists $ removeDirectoryRecursive cachedir
+    exists <- doesDirectoryExist fullpath
+    when exists $ removeDirectoryRecursive fullpath
 
 -- | Expire the cached feed unless it is younger than 'minutes' old.
 expireFeed :: Integer -> FilePath -> GHandler Gitit master ()
