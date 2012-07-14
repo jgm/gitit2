@@ -9,6 +9,7 @@ Discuss: discuss
 FrontPage: Front page
 Directory: Directory
 Categories: Categories
+Category: Category
 RandomPage: Random page
 RecentActivity: Recent activity
 UploadFile: Upload a file

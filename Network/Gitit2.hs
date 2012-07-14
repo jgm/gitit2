@@ -1432,7 +1432,7 @@ getCategoryR category = do
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
     [whamlet|
-      <h1>#{category}</h1>
+      <h1>_{MsgCategory} #{category}</h1>
     |]
 
 
