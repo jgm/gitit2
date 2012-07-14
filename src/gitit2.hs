@@ -9,7 +9,7 @@ import Data.FileStore
 import Data.Yaml
 import Control.Applicative
 import Control.Monad (when)
-import System.Directory (removeDirectoryRecursive)
+import System.Directory (removeDirectoryRecursive, doesDirectoryExist)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
 import System.IO
@@ -186,8 +186,10 @@ main = do
                                       cfg_max_upload_size conf
 
   -- clear cache
-  when (cfg_use_cache conf) $
-     removeDirectoryRecursive $ cfg_cache_dir conf
+  when (cfg_use_cache conf) $ do
+    let cachedir = cfg_cache_dir conf
+    exists <- doesDirectoryExist cachedir
+    when exists $ removeDirectoryRecursive cachedir
 
   let settings = defaultSettings{ settingsPort = cfg_port conf }
   let runner = runSettingsSocket settings sock

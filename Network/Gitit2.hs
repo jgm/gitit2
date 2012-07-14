@@ -24,7 +24,7 @@ import Yesod hiding (MsgDelete)
 import Yesod.Static
 import Language.Haskell.TH hiding (dyn)
 import Data.Ord (comparing)
-import Data.List (inits, find, sortBy, isPrefixOf)
+import Data.List (inits, find, sortBy, isPrefixOf, sort, nub)
 import Data.FileStore as FS
 import Data.Char (toLower)
 import System.FilePath
@@ -1427,23 +1427,37 @@ expireFeed minutes path = do
 
 getCategoriesR :: HasGitit master => GHandler Gitit master RepHtml
 getCategoriesR = do
+  conf <- getConfig
+  toMaster <- getRouteToMaster
+  let repopath = repository_path conf
+  allpages <- map (repopath </>) <$> allPageFiles
+  allcategories <- liftIO $ nub . sort . concat <$> mapM readCategories allpages
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
     [whamlet|
       <h1>_{MsgCategories}</h1>
+      <ul>
+        $forall category <- allcategories
+          <li><a href=@{toMaster $ CategoryR category}>#{category}
     |]
 
 getCategoryR :: HasGitit master => Text -> GHandler Gitit master RepHtml
 getCategoryR category = do
-  cats <- liftIO $ readCategories "wikidata/Front Page.page"
+  conf <- getConfig
+  toMaster <- getRouteToMaster
+  let repopath = repository_path conf
+  allpages <- allPageFiles
+  let hasCategory pg = elem category <$> readCategories (repopath </> pg)
+  matchingpages <- mapM pageForPath =<< (sort <$> filterM (liftIO . hasCategory) allpages)
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
     [whamlet|
       <h1>_{MsgCategory}: #{category}</h1>
-      $forall cat <- cats
-        <p>#{cat}</p>
+      <ul.index>
+        $forall page <- matchingpages
+          <li .page><a href=@{toMaster $ ViewR page}>#{page}
     |]
 
 -- | Examine metadata at beginning of file, returning list of categories.
