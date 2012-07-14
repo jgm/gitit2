@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              ScopedTypeVariables, TupleSections #-}
-module Network.Gitit2 ( GititConfig (..)
+module Network.Gitit2 {- ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
                       , PageFormat (..)
@@ -15,7 +15,7 @@ module Network.Gitit2 ( GititConfig (..)
                       , PageLayout (..)
                       , pageLayout
                       , makeDefaultPage
-                      ) where
+                      ) -} where
 
 import Prelude hiding (catch)
 import Control.Exception (catch)
@@ -658,9 +658,6 @@ contentsToWikiPage page contents = do
   let fromBool (Bool t) = t
       fromBool _        = False
   let toc = maybe False fromBool (M.lookup "toc" metadata)
-  let categories = case M.lookup "categories" metadata of
-                        Just (String t) -> T.words $ T.replace "," " " t
-                        _               -> []
   let doc = reader $ toString b
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks doc
   return $ WikiPage {
@@ -669,7 +666,7 @@ contentsToWikiPage page contents = do
            , wpTOC         = toc
            , wpLHS         = lhs
            , wpTitle       = toList $ text $ T.unpack $ pageToText page
-           , wpCategories  = categories
+           , wpCategories  = extractCategories metadata
            , wpMetadata    = metadata
            , wpCacheable   = True
            , wpContent     = blocks
@@ -1439,24 +1436,37 @@ getCategoriesR = do
 
 getCategoryR :: HasGitit master => Text -> GHandler Gitit master RepHtml
 getCategoryR category = do
+  cats <- liftIO $ readCategories "wikidata/Front Page.page"
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $ do
     [whamlet|
       <h1>_{MsgCategory}: #{category}</h1>
+      $forall cat <- cats
+        <p>#{cat}</p>
     |]
 
 -- | Examine metadata at beginning of file, returning list of categories.
 -- Note:  Must be strict.
 readCategories :: FilePath -> IO [Text]
-readCategories = undefined
+readCategories f = do
+  hdr <- getHeader f
+  if BS.null hdr
+     then return []
+     else return $ extractCategories $ maybe M.empty id $ decode hdr
+
+extractCategories :: M.Map Text Value -> [Text]
+extractCategories metadata =
+  case M.lookup ("categories" :: Text) metadata of
+       Just (String t) -> T.words $ T.replace "," " " t
+       _               -> []
 
 getHeader :: FilePath -> IO BS.ByteString
 getHeader f =
   withFile f ReadMode $ \h ->
     catch (do fl <- BS.hGetLine h
               if dashline fl
-                 then BS.concat <$> hGetLinesTill h dotline
+                 then BSC.unlines <$> hGetLinesTill h dotline
                  else return BS.empty)
        (\e -> if isEOFError e then return BS.empty else throw e)
 
