@@ -141,24 +141,22 @@ data Tab  = ViewTab
 -- | Page layout.
 data PageLayout = PageLayout{
     pgName           :: Maybe Page
-  , pgRevision       :: Maybe String
-  , pgPrintable      :: Bool
   , pgPageTools      :: Bool
   , pgSiteNav        :: Bool
   , pgTabs           :: [Tab]
   , pgSelectedTab    :: Tab
+  , pgCategories     :: [Text]
   }
 
 -- | Default page layout.
 pageLayout :: PageLayout
 pageLayout = PageLayout{
     pgName           = Nothing
-  , pgRevision       = Nothing
-  , pgPrintable      = False
   , pgPageTools      = False
   , pgSiteNav        = True
   , pgTabs           = []
   , pgSelectedTab    = ViewTab
+  , pgCategories     = []
   }
 
 -- | The Boolean is True for literate Haskell.
