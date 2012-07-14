@@ -233,6 +233,8 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_export/*Page ExportR POST
 /_expire/*Page ExpireR POST
 /_expire ExpireHomeR POST
+/_categories CategoriesR GET
+/_category/#Text CategoryR GET
 /*Page     ViewR GET
 |]
 
@@ -292,9 +294,9 @@ makeDefaultPage layout content = do
               <legend>Site
               <ul>
                 <li><a href=@{toMaster HomeR}>_{MsgFrontPage}</a>
-                <li><a href=@{toMaster $ IndexBaseR}>_{MsgDirectory}</a>
-                <li><a href="">_{MsgCategories}</a>
-                <li><a href=@{toMaster $ RandomR}>_{MsgRandomPage}</a>
+                <li><a href=@{toMaster IndexBaseR}>_{MsgDirectory}</a>
+                <li><a href=@{toMaster CategoriesR}>_{MsgCategories}</a>
+                <li><a href=@{toMaster RandomR}>_{MsgRandomPage}</a>
                 <li><a href=@{toMaster $ ActivityR 1}>_{MsgRecentActivity}</a>
                 <li><a href=@{toMaster UploadR}>_{MsgUploadFile}</a></li>
                 <li><a href=@{toMaster AtomSiteR} type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
@@ -1412,5 +1414,25 @@ expireFeed minutes path = do
       TOD seconds' _ <- getClockTime
       unless ((seconds' - seconds) < (minutes * 60))
         $ removeDirectoryRecursive fullpath
+
+-- categories ------------
+
+getCategoriesR :: HasGitit master => GHandler Gitit master RepHtml
+getCategoriesR = do
+  makePage pageLayout{ pgName = Nothing
+                     , pgTabs = []
+                     , pgSelectedTab = EditTab } $ do
+    [whamlet|
+      <h1>_{MsgCategories}</h1>
+    |]
+
+getCategoryR :: HasGitit master => Text -> GHandler Gitit master RepHtml
+getCategoryR category = do
+  makePage pageLayout{ pgName = Nothing
+                     , pgTabs = []
+                     , pgSelectedTab = EditTab } $ do
+    [whamlet|
+      <h1>#{category}</h1>
+    |]
 
 
