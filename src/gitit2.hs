@@ -211,5 +211,6 @@ main = do
                                   }
                     , filestore = fs
                     , getStatic = st
+                    , plugins = []
                     })
               maxsize)

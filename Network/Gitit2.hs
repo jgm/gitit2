@@ -2,7 +2,7 @@
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              ScopedTypeVariables, TupleSections, DeriveDataTypeable,
              Rank2Types#-}
-module Network.Gitit2 {- ( GititConfig (..)
+module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
                       , PageFormat (..)
@@ -16,7 +16,8 @@ module Network.Gitit2 {- ( GititConfig (..)
                       , PageLayout (..)
                       , pageLayout
                       , makeDefaultPage
-                      ) -} where
+                      , Plugin (..)
+                      ) where
 
 import Prelude hiding (catch)
 import Control.Exception (catch)
@@ -68,12 +69,15 @@ infixr 5 <>
 (<>) :: Monoid m => m -> m -> m
 (<>) = mappend
 
+newtype Plugin = Plugin { unPlugin :: Gitit -> WikiPage -> IO WikiPage }
+
 -- | A Gitit wiki.  For an example of how a Gitit subsite
 -- can be integrated into another Yesod app, see @src/gitit.hs@
 -- in the package source.
 data Gitit = Gitit{ config        :: GititConfig  -- ^ Wiki config options.
                   , filestore     :: FileStore    -- ^ Filestore with pages.
                   , getStatic     :: Static       -- ^ Static subsite.
+                  , plugins       :: [Plugin]     -- ^ Plugins to apply.
                   }
 
 instance Yesod Gitit
@@ -1521,10 +1525,5 @@ hGetLinesTill h end = do
        rest <- hGetLinesTill h end
        return (next:rest)
 
---- plugins -------------------------
-
-newtype Plugin = Plugin {
-  unPlugin :: HasGitit master => WikiPage -> GHandler Gitit master WikiPage
-  }
 
 
