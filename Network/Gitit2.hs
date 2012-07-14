@@ -40,6 +40,7 @@ import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.UTF8 as BSU
 import Text.Blaze.Html hiding (contents)
@@ -48,6 +49,8 @@ import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
 import Data.Maybe (mapMaybe, isJust)
 import System.Random (randomRIO)
+import System.IO (Handle, withFile, IOMode(..))
+import System.IO.Error (isEOFError)
 import Control.Exception (throw, handle, try)
 import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
@@ -1421,6 +1424,10 @@ expireFeed minutes path = do
 
 -- categories ------------
 
+-- NOTE:  The current implementation of of categories does not go via the
+-- filestore abstraction.  That is bad, but can only be fixed if we add
+-- more sophisticated searching options to filestore.
+
 getCategoriesR :: HasGitit master => GHandler Gitit master RepHtml
 getCategoriesR = do
   makePage pageLayout{ pgName = Nothing
@@ -1439,4 +1446,38 @@ getCategoryR category = do
       <h1>_{MsgCategory}: #{category}</h1>
     |]
 
+-- | Examine metadata at beginning of file, returning list of categories.
+-- Note:  Must be strict.
+readCategories :: FilePath -> IO [Text]
+readCategories = undefined
+
+getHeader :: FilePath -> IO BS.ByteString
+getHeader f =
+  withFile f ReadMode $ \h ->
+    catch (do fl <- BS.hGetLine h
+              if dashline fl
+                 then BS.concat <$> hGetLinesTill h dotline
+                 else return BS.empty)
+       (\e -> if isEOFError e then return BS.empty else throw e)
+
+dashline :: BS.ByteString -> Bool
+dashline x =
+  case BSC.unpack x of
+       ('-':'-':'-':xs) | all (==' ') xs -> True
+       _ -> False
+
+dotline :: BS.ByteString -> Bool
+dotline x =
+  case BSC.unpack x of
+       ('.':'.':'.':xs) | all (==' ') xs -> True
+       _ -> False
+
+hGetLinesTill :: Handle -> (BS.ByteString -> Bool) -> IO [BS.ByteString]
+hGetLinesTill h end = do
+  next <- BS.hGetLine h
+  if end next
+     then return []
+     else do
+       rest <- hGetLinesTill h end
+       return (next:rest)
 
