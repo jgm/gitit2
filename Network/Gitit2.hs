@@ -34,7 +34,7 @@ import Text.Pandoc.Shared (stringify, inDirectory, readDataFile)
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
-import Control.Monad (when, unless, filterM, mplus, guard)
+import Control.Monad (when, unless, filterM, mplus)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
@@ -1410,8 +1410,9 @@ expireCategories :: GHandler Gitit master ()
 expireCategories = do
   cachedir <- cache_dir <$> getConfig
   let fullpath = cachedir </> "_categories"
-  liftIO $ doesDirectoryExist cachedir >>= guard >>
-           removeDirectoryRecursive cachedir
+  liftIO $ do
+    exists <- doesDirectoryExist cachedir
+    when exists $ removeDirectoryRecursive cachedir
 
 -- | Expire the cached feed unless it is younger than 'minutes' old.
 expireFeed :: Integer -> FilePath -> GHandler Gitit master ()
