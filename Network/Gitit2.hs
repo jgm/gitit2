@@ -76,6 +76,13 @@ mkMessage "Gitit" "messages" "en"
 type GH master a = GHandler Gitit master a
 type GW master a = GWidget Gitit master a
 
+data Plugin master = Plugin {
+       unPlugin :: WikiPage -> GHandler Gitit master WikiPage
+       }
+
+applyPlugin :: WikiPage -> Plugin master -> GH master WikiPage
+applyPlugin wp pl = unPlugin pl wp
+
 -- | The master site containing a Gitit subsite must be an instance
 -- of this typeclass.
 -- TODO: replace the user functions with isAuthorized from Yesod typeclass?
@@ -87,13 +94,8 @@ class (Yesod master, RenderMessage master FormMessage,
   requireUser :: GHandler sub master GititUser
   -- | Gitit subsite page layout.
   makePage :: PageLayout -> GW master () -> GH master RepHtml
-
-data Plugin = Plugin {
-       unPlugin :: forall m. HasGitit m => WikiPage -> GHandler Gitit m WikiPage
-       }
-
-applyPlugin :: HasGitit master => WikiPage -> Plugin -> GH master WikiPage
-applyPlugin wp pl = unPlugin pl wp
+  -- | Plugins.
+  getPlugins :: GH master [Plugin master]
 
 -- | A Gitit wiki.  For an example of how a Gitit subsite
 -- can be integrated into another Yesod app, see @src/gitit.hs@
@@ -101,7 +103,6 @@ applyPlugin wp pl = unPlugin pl wp
 data Gitit = Gitit{ config        :: GititConfig  -- ^ Wiki config options.
                   , filestore     :: FileStore    -- ^ Filestore with pages.
                   , getStatic     :: Static       -- ^ Static subsite.
-                  , plugins       :: [Plugin]     -- ^ Plugins to apply.
                   }
 
 instance Yesod Gitit
@@ -653,7 +654,7 @@ stripHeader [] = (B.empty, B.empty)
 contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GH master WikiPage
 contentsToWikiPage page contents = do
   conf <- getConfig
-  plugins' <- plugins <$> getYesodSub
+  plugins' <- getPlugins
   let (h,b) = stripHeader $ B.lines contents
   let metadata :: M.Map Text Value
       metadata = if B.null h

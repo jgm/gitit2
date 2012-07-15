@@ -55,6 +55,7 @@ instance HasGitit Master where
   maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
   makePage = makeDefaultPage
+  getPlugins = return [samplePlugin]
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)
@@ -159,11 +160,12 @@ warn msg = hPutStrLn stderr msg
 
 
 -- TODO test
-samplePlugin :: Plugin
+samplePlugin :: Plugin Master
 samplePlugin = Plugin f
-  where f wp = return wp{ wpContent = everywhere (mkT spToUnderscore) $ wpContent wp }
-        spToUnderscore Space = Str "_"
-        spToUnderscore x     = x
+   where f = everywhereM (mkM spToUnderscore)
+         spToUnderscore Space = return $ Str "_"
+         spToUnderscore x     = return x
+
 
 main :: IO ()
 main = do
@@ -224,6 +226,5 @@ main = do
                                   }
                     , filestore = fs
                     , getStatic = st
-                    , plugins = [samplePlugin]
                     })
               maxsize)
