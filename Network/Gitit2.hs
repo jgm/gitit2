@@ -531,7 +531,10 @@ view mbrev page = do
        Just contents -> do
          wikipage <- contentsToWikiPage page contents
          htmlContents <- pageToHtml wikipage
-         caching path $ layout [ViewTab,EditTab,HistoryTab,DiscussTab]
+         let mbcache = if wpCacheable wikipage
+                          then caching path
+                          else id
+         mbcache $ layout [ViewTab,EditTab,HistoryTab,DiscussTab]
                             (wpCategories wikipage) htmlContents
        Nothing -> do
          path' <- pathForFile page
