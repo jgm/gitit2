@@ -161,11 +161,11 @@ warn msg = hPutStrLn stderr msg
 
 -- TODO test
 samplePlugin :: Plugin Master
-samplePlugin = Plugin f
-   where f = everywhereM (mkM spToUnderscore)
-         spToUnderscore Space = return $ Str "_"
-         spToUnderscore x     = return x
-
+samplePlugin = Plugin $ \wp -> do
+ let spToUnderscore Space = return $ Str "_"
+     spToUnderscore x     = return x
+ newContent <- everywhereM (mkM spToUnderscore) $ wpContent wp
+ return wp{ wpContent = newContent }
 
 main :: IO ()
 main = do

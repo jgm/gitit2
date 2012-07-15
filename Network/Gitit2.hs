@@ -1,7 +1,6 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
-             ScopedTypeVariables, TupleSections, DeriveDataTypeable,
-             RankNTypes #-}
+             ScopedTypeVariables, TupleSections #-}
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
@@ -60,7 +59,6 @@ import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Yesod.Default.Handlers (getFaviconR, getRobotsR)
 import Data.Yaml
-import Data.Generics
 import System.Directory
 import System.Time (ClockTime (..), getClockTime)
 import Network.HTTP.Base (urlEncode, urlDecode)
@@ -195,7 +193,7 @@ pageLayout = PageLayout{
 
 -- | The Boolean is True for literate Haskell.
 data PageFormat = Markdown Bool | RST Bool | LaTeX Bool | HTML Bool | Textile Bool
-                  deriving (Read, Show, Eq, Data, Typeable)
+                  deriving (Read, Show, Eq )
 
 readPageFormat :: Text -> Maybe PageFormat
 readPageFormat s =
@@ -216,10 +214,10 @@ data WikiPage = WikiPage {
   , wpLHS         :: Bool
   , wpTitle       :: [Inline]
   , wpCategories  :: [Text]
-  , wpVariables   :: [(String,String)]
+  , wpMetadata    :: M.Map Text Value
   , wpCacheable   :: Bool
   , wpContent     :: [Block]
-} deriving (Show, Data, Typeable)
+} deriving (Show)
 
 -- Create routes.
 mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
@@ -678,12 +676,6 @@ contentsToWikiPage page contents = do
   let fromBool (Bool t) = t
       fromBool _        = False
   let toc = maybe False fromBool (M.lookup "toc" metadata)
-  let metadataToVar :: (Text, Value) -> Maybe (String, String)
-      metadataToVar (k, String v) = Just (T.unpack k, T.unpack v)
-      metadataToVar (k, Bool v)   = Just (T.unpack k, if v then "yes" else "no")
-      metadataToVar (k, Number v) = Just (T.unpack k, show v)
-      metadataToVar _             = Nothing
-  let vars = mapMaybe metadataToVar $ M.toList metadata
   let doc = reader $ toString b
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks doc
   foldM applyPlugin
@@ -694,7 +686,7 @@ contentsToWikiPage page contents = do
            , wpLHS         = lhs
            , wpTitle       = toList $ text $ T.unpack $ pageToText page
            , wpCategories  = extractCategories metadata
-           , wpVariables   = vars
+           , wpMetadata    = metadata
            , wpCacheable   = True
            , wpContent     = blocks
            } plugins'
@@ -1230,7 +1222,12 @@ basicExport templ contentType writer = \wikiPage -> do
   template <- case template' of
                      Right t  -> return t
                      Left e   -> throw e
-  let vars = wpVariables wikiPage
+  let metadataToVar :: (Text, Value) -> Maybe (String, String)
+      metadataToVar (k, String v) = Just (T.unpack k, T.unpack v)
+      metadataToVar (k, Bool v)   = Just (T.unpack k, if v then "yes" else "no")
+      metadataToVar (k, Number v) = Just (T.unpack k, show v)
+      metadataToVar _             = Nothing
+  let vars = mapMaybe metadataToVar $ M.toList $ wpMetadata wikiPage
   dzcore <- if templ == "dzslides"
                 then liftIO $ do
                   dztempl <- readDataFile (pandoc_user_data conf)
