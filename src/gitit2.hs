@@ -20,6 +20,7 @@ import qualified Data.Text as T
 -- TODO only for samplePlugin
 import Data.Generics
 import Data.Char (toLower)
+import Text.Pandoc.Definition
 
 data Master = Master { getGitit :: Gitit, maxUploadSize :: Int }
 mkYesod "Master" [parseRoutes|
@@ -159,7 +160,10 @@ warn msg = hPutStrLn stderr msg
 
 -- TODO test
 samplePlugin :: Plugin
-samplePlugin = Plugin $ return . everywhere (mkT (toLower))
+samplePlugin = Plugin f
+  where f wp = return wp{ wpContent = everywhere (mkT spToUnderscore) $ wpContent wp }
+        spToUnderscore Space = Str "_"
+        spToUnderscore x     = x
 
 main :: IO ()
 main = do

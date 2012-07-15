@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              ScopedTypeVariables, TupleSections, DeriveDataTypeable,
-             Rank2Types#-}
+             RankNTypes #-}
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
@@ -17,6 +17,7 @@ module Network.Gitit2 ( GititConfig (..)
                       , pageLayout
                       , makeDefaultPage
                       , Plugin (..)
+                      , WikiPage (..)
                       ) where
 
 import Prelude hiding (catch)
@@ -69,9 +70,29 @@ infixr 5 <>
 (<>) :: Monoid m => m -> m -> m
 (<>) = mappend
 
-newtype Plugin = Plugin { unPlugin :: WikiPage -> IO WikiPage }
+-- Create GititMessages.
+mkMessage "Gitit" "messages" "en"
 
-applyPlugin :: WikiPage -> Plugin -> IO WikiPage
+type GH master a = GHandler Gitit master a
+type GW master a = GWidget Gitit master a
+
+-- | The master site containing a Gitit subsite must be an instance
+-- of this typeclass.
+-- TODO: replace the user functions with isAuthorized from Yesod typeclass?
+class (Yesod master, RenderMessage master FormMessage,
+       RenderMessage master GititMessage) => HasGitit master where
+  -- | Return user information, if user is logged in, or nothing.
+  maybeUser   :: GHandler sub master (Maybe GititUser)
+  -- | Return user information or redirect to login page.
+  requireUser :: GHandler sub master GititUser
+  -- | Gitit subsite page layout.
+  makePage :: PageLayout -> GW master () -> GH master RepHtml
+
+data Plugin = Plugin {
+       unPlugin :: forall m. HasGitit m => WikiPage -> GHandler Gitit m WikiPage
+       }
+
+applyPlugin :: HasGitit master => WikiPage -> Plugin -> GH master WikiPage
 applyPlugin wp pl = unPlugin pl wp
 
 -- | A Gitit wiki.  For an example of how a Gitit subsite
@@ -199,21 +220,6 @@ data WikiPage = WikiPage {
   , wpContent     :: [Block]
 } deriving (Show, Data, Typeable)
 
--- Create GititMessages.
-mkMessage "Gitit" "messages" "en"
-
--- | The master site containing a Gitit subsite must be an instance
--- of this typeclass.
--- TODO: replace the user functions with isAuthorized from Yesod typeclass?
-class (Yesod master, RenderMessage master FormMessage,
-       RenderMessage master GititMessage) => HasGitit master where
-  -- | Return user information, if user is logged in, or nothing.
-  maybeUser   :: GHandler sub master (Maybe GititUser)
-  -- | Return user information or redirect to login page.
-  requireUser :: GHandler sub master GititUser
-  -- | Gitit subsite page layout.
-  makePage :: PageLayout -> GWidget Gitit master () -> GHandler Gitit master RepHtml
-
 -- Create routes.
 mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
  ] [parseRoutesNoCheck|
@@ -248,10 +254,10 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /*Page     ViewR GET
 |]
 
-getConfig :: GHandler Gitit master GititConfig
+getConfig :: GH master GititConfig
 getConfig = config <$> getYesodSub
 
-makeDefaultPage :: HasGitit master => PageLayout -> GWidget Gitit master () -> GHandler Gitit master RepHtml
+makeDefaultPage :: HasGitit master => PageLayout -> GW master () -> GH master RepHtml
 makeDefaultPage layout content = do
   toMaster <- getRouteToMaster
   let logoRoute = toMaster $ StaticR $ StaticRoute ["img","logo.png"] []
@@ -337,7 +343,7 @@ makeDefaultPage layout content = do
 -- HANDLERS and utility functions, not exported:
 
 -- | Convert links with no URL to wikilinks.
-convertWikiLinks :: Inline -> GHandler Gitit master Inline
+convertWikiLinks :: Inline -> GH master Inline
 convertWikiLinks (Link ref ("", "")) = do
   toMaster <- getRouteToMaster
   toUrl <- getUrlRender
@@ -350,7 +356,7 @@ convertWikiLinks (Image ref ("", "")) = do
   return $ Image ref (T.unpack $ toUrl $ toMaster route, "")
 convertWikiLinks x = return x
 
-addWikiLinks :: Pandoc -> GHandler Gitit master Pandoc
+addWikiLinks :: Pandoc -> GH master Pandoc
 addWikiLinks = bottomUpM convertWikiLinks
 
 sanitizePandoc :: Pandoc -> Pandoc
@@ -373,15 +379,15 @@ sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
                                   Just (w,z) -> Just (T.unpack w, T.unpack z)
                                   Nothing    -> Nothing
 
-pathForPage :: Page -> GHandler Gitit master FilePath
+pathForPage :: Page -> GH master FilePath
 pathForPage p = do
   conf <- getConfig
   return $ T.unpack (toMessage p) <> page_extension conf
 
-pathForFile :: Page -> GHandler Gitit master FilePath
+pathForFile :: Page -> GH master FilePath
 pathForFile p = return $ T.unpack $ toMessage p
 
-pageForPath :: FilePath -> GHandler Gitit master Page
+pageForPath :: FilePath -> GH master Page
 pageForPath fp = do
   conf <- getConfig
   return $ textToPage $ T.pack $
@@ -404,37 +410,37 @@ discussedPage (Page xs)
   | isDiscussPage (Page xs) = Page $ init xs ++ [T.drop 1 $ last xs]
   | otherwise               = Page xs
 
-isPageFile :: FilePath -> GHandler Gitit master Bool
+isPageFile :: FilePath -> GH master Bool
 isPageFile f = do
   conf <- getConfig
   return $ takeExtension f == page_extension conf
 
-allPageFiles :: GHandler Gitit master [FilePath]
+allPageFiles :: GH master [FilePath]
 allPageFiles = do
   fs <- filestore <$> getYesodSub
   liftIO (index fs) >>= filterM isPageFile
 
-isDiscussPageFile :: FilePath -> GHandler Gitit master Bool
+isDiscussPageFile :: FilePath -> GH master Bool
 isDiscussPageFile ('@':xs) = isPageFile xs
 isDiscussPageFile _ = return False
 
-isSourceFile :: FilePath -> GHandler Gitit master Bool
+isSourceFile :: FilePath -> GH master Bool
 isSourceFile path' = do
   let langs = languagesByFilename $ takeFileName path'
   return $ not (null langs || takeExtension path' == ".svg")
                          -- allow svg to be served as image
 
-getHomeR :: HasGitit master => GHandler Gitit master RepHtml
+getHomeR :: HasGitit master => GH master RepHtml
 getHomeR = do
   conf <- getConfig
   getViewR $ textToPage $ front_page conf
 
-getHelpR :: HasGitit master => GHandler Gitit master RepHtml
+getHelpR :: HasGitit master => GH master RepHtml
 getHelpR = do
   conf <- getConfig
   getViewR $ textToPage $ help_page conf
 
-getRandomR :: HasGitit master => GHandler Gitit master RepHtml
+getRandomR :: HasGitit master => GH master RepHtml
 getRandomR = do
   fs <- filestore <$> getYesodSub
   files <- liftIO $ index fs
@@ -445,7 +451,7 @@ getRandomR = do
   toMaster <- getRouteToMaster
   redirect $ toMaster $ ViewR thepage
 
-getRawR :: HasGitit master => Page -> GHandler Gitit master RepPlain
+getRawR :: HasGitit master => Page -> GH master RepPlain
 getRawR page = do
   path <- pathForPage page
   mbcont <- getRawContents path Nothing
@@ -458,7 +464,7 @@ getRawR page = do
               Just cont -> return $ RepPlain $ toContent cont
        Just cont -> return $ RepPlain $ toContent cont
 
-getDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+getDeleteR :: HasGitit master => Page -> GH master RepHtml
 getDeleteR page = do
   requireUser
   fs <- filestore <$> getYesodSub
@@ -487,7 +493,7 @@ getDeleteR page = do
           <input type=submit value=_{MsgDelete}>
     |]
 
-postDeleteR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+postDeleteR :: HasGitit master => Page -> GH master RepHtml
 postDeleteR page = do
   user <- requireUser
   fs <- filestore <$> getYesodSub
@@ -500,22 +506,22 @@ postDeleteR page = do
   setMessageI $ MsgDeleted page
   redirect (toMaster HomeR)
 
-getViewR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+getViewR :: HasGitit master => Page -> GH master RepHtml
 getViewR page = do
   pathForPage page >>= tryCache
   pathForFile page >>= tryCache
   view Nothing page
 
-getMimeType :: FilePath -> GHandler Gitit master ContentType
+getMimeType :: FilePath -> GH master ContentType
 getMimeType fp = do
   mimeTypes <- mime_types <$> getConfig
   return $ maybe "application/octet-stream" id
          $ M.lookup (drop 1 $ takeExtension fp) mimeTypes
 
-getRevisionR :: HasGitit master => RevisionId -> Page -> GHandler Gitit master RepHtml
+getRevisionR :: HasGitit master => RevisionId -> Page -> GH master RepHtml
 getRevisionR rev = view (Just rev)
 
-view :: HasGitit master => Maybe RevisionId -> Page -> GHandler Gitit master RepHtml
+view :: HasGitit master => Maybe RevisionId -> Page -> GH master RepHtml
 view mbrev page = do
   toMaster <- getRouteToMaster
   path <- pathForPage page
@@ -572,13 +578,13 @@ view mbrev page = do
                                <li><a href=@{toMaster $ CategoryR category}>#{category}
                        |]
 
-getIndexBaseR :: HasGitit master => GHandler Gitit master RepHtml
+getIndexBaseR :: HasGitit master => GH master RepHtml
 getIndexBaseR = getIndexFor []
 
-getIndexR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+getIndexR :: HasGitit master => Page -> GH master RepHtml
 getIndexR (Page xs) = getIndexFor xs
 
-getIndexFor :: HasGitit master => [Text] -> GHandler Gitit master RepHtml
+getIndexFor :: HasGitit master => [Text] -> GH master RepHtml
 getIndexFor paths = do
   fs <- filestore <$> getYesodSub
   listing <- liftIO $ directory fs $ T.unpack $ T.intercalate "/" paths
@@ -608,7 +614,7 @@ getIndexFor paths = do
             <a href=@{route}>#{name}</a>
   |]
 
-upDir :: (Route Gitit -> Route master) -> [Text] -> GWidget Gitit master ()
+upDir :: (Route Gitit -> Route master) -> [Text] -> GW master ()
 upDir toMaster fs = do
   let (route, lastdir) = case reverse fs of
                           (f:_)  -> (IndexR $ Page fs, f)
@@ -618,13 +624,13 @@ upDir toMaster fs = do
 getRawContents :: HasGitit master
                => FilePath
                -> Maybe RevisionId
-               -> GHandler Gitit master (Maybe ByteString)
+               -> GH master (Maybe ByteString)
 getRawContents path rev = do
   fs <- filestore <$> getYesodSub
   liftIO $ handle (\e -> if e == FS.NotFound then return Nothing else throw e)
          $ Just <$> retrieve fs path rev
 
-pageToHtml :: HasGitit master => WikiPage -> GHandler Gitit master Html
+pageToHtml :: HasGitit master => WikiPage -> GH master Html
 pageToHtml wikiPage = do
   return $ writeHtml defaultWriterOptions{
                writerWrapText = False
@@ -644,10 +650,10 @@ stripHeader (x:xs)
        isHeaderEnd   z = ["..."] == B.words z
 stripHeader [] = (B.empty, B.empty)
 
-contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GHandler Gitit master WikiPage
+contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GH master WikiPage
 contentsToWikiPage page contents = do
   conf <- getConfig
-  plugins <- plugins <$> getYesodSub
+  plugins' <- plugins <$> getYesodSub
   let (h,b) = stripHeader $ B.lines contents
   let metadata :: M.Map Text Value
       metadata = if B.null h
@@ -676,7 +682,7 @@ contentsToWikiPage page contents = do
   let vars = mapMaybe metadataToVar $ M.toList metadata
   let doc = reader $ toString b
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks doc
-  liftIO $ foldM applyPlugin
+  foldM applyPlugin
            WikiPage {
              wpName        = pageToText page
            , wpFormat      = format
@@ -687,10 +693,10 @@ contentsToWikiPage page contents = do
            , wpVariables   = vars
            , wpCacheable   = True
            , wpContent     = blocks
-           } plugins
+           } plugins'
 
 sourceToHtml :: HasGitit master
-             => FilePath -> ByteString -> GHandler Gitit master Html
+             => FilePath -> ByteString -> GH master Html
 sourceToHtml path contents = do
   let formatOpts = defaultFormatOpts { numberLines = True, lineAnchors = True }
   return $ formatHtmlBlock formatOpts $
@@ -701,18 +707,18 @@ sourceToHtml path contents = do
 mathjax_url :: Text
 mathjax_url = "https://d3eoax9i5htok0.cloudfront.net/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 
-toWikiPage :: HasGitit master => Html -> GWidget Gitit master ()
+toWikiPage :: HasGitit master => Html -> GW master ()
 toWikiPage rendered = do
   cfg <- config <$> lift getYesodSub
   when (use_mathjax cfg) $ addScriptRemote mathjax_url
   toWidget rendered
 
-postSearchR :: HasGitit master => GHandler Gitit master RepHtml
+postSearchR :: HasGitit master => GH master RepHtml
 postSearchR = do
   patterns <- runInputPost $ ireq textField "patterns"
   searchResults $ T.words patterns
 
-postGoR :: HasGitit master => GHandler Gitit master RepHtml
+postGoR :: HasGitit master => GH master RepHtml
 postGoR = do
   gotopage <- runInputPost $ ireq textField "gotopage"
   let gotopage' = T.toLower gotopage
@@ -728,7 +734,7 @@ postGoR = do
        Just m  -> redirect $ toMaster $ ViewR $ textToPage m
        Nothing -> searchResults $ T.words gotopage
 
-searchResults :: HasGitit master => [Text] -> GHandler Gitit master RepHtml
+searchResults :: HasGitit master => [Text] -> GH master RepHtml
 searchResults patterns = do
   fs <- filestore <$> getYesodSub
   matchLines <- if null patterns
@@ -792,7 +798,7 @@ searchResults patterns = do
             <pre .matches>#{unlines cont}
     |]
 
-getEditR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+getEditR :: HasGitit master => Page -> GH master RepHtml
 getEditR page = do
   requireUser
   fs <- filestore <$> getYesodSub
@@ -808,7 +814,7 @@ getEditR page = do
   edit False contents mbrev page
 
 getRevertR :: HasGitit master
-           => RevisionId -> Page -> GHandler Gitit master RepHtml
+           => RevisionId -> Page -> GH master RepHtml
 getRevertR rev page = do
   requireUser
   path <- pathForPage page
@@ -822,7 +828,7 @@ edit :: HasGitit master
      -> String             -- contents to put in text box
      -> Maybe RevisionId   -- unless new page, Just id of old version
      -> Page
-     -> GHandler Gitit master RepHtml
+     -> GH master RepHtml
 edit revert txt mbrevid page = do
   requireUser
   let contents = Textarea $ T.pack $ txt
@@ -848,8 +854,8 @@ showEditForm :: HasGitit master
              => Page
              -> Route master
              -> Enctype
-             -> GWidget Gitit master ()
-             -> GHandler Gitit master RepHtml
+             -> GW master ()
+             -> GH master RepHtml
 showEditForm page route enctype form = do
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
@@ -863,15 +869,15 @@ showEditForm page route enctype form = do
     |]
 
 postUpdateR :: HasGitit master
-          => RevisionId -> Page -> GHandler Gitit master RepHtml
+          => RevisionId -> Page -> GH master RepHtml
 postUpdateR revid page = update' (Just revid) page
 
 postCreateR :: HasGitit master
-            => Page -> GHandler Gitit master RepHtml
+            => Page -> GH master RepHtml
 postCreateR page = update' Nothing page
 
 update' :: HasGitit master
-       => Maybe RevisionId -> Page -> GHandler Gitit master RepHtml
+       => Maybe RevisionId -> Page -> GH master RepHtml
 update' mbrevid page = do
   user <- requireUser
   ((result, widget), enctype) <- runFormPost $ editForm Nothing
@@ -910,7 +916,7 @@ data Edit = Edit { editContents :: Textarea
 editForm :: HasGitit master
          => Maybe Edit
          -> Html
-         -> MForm Gitit master (FormResult Edit, GWidget Gitit master ())
+         -> MForm Gitit master (FormResult Edit, GW master ())
 editForm mbedit = renderDivs $ Edit
     <$> areq textareaField (fieldSettingsLabel MsgPageSource)
            (editContents <$> mbedit)
@@ -923,7 +929,7 @@ editForm mbedit = renderDivs $ Edit
 
 
 getDiffR :: HasGitit master
-         => RevisionId -> RevisionId -> Page -> GHandler Gitit master RepHtml
+         => RevisionId -> RevisionId -> Page -> GH master RepHtml
 getDiffR fromRev toRev page = do
   fs <- filestore <$> getYesodSub
   pagePath <- pathForPage page
@@ -948,7 +954,7 @@ getDiffR fromRev toRev page = do
      |]
 
 getHistoryR :: HasGitit master
-            => Int -> Page -> GHandler Gitit master RepHtml
+            => Int -> Page -> GH master RepHtml
 getHistoryR start page = do
   let items = 20 -- items per page
   fs <- filestore <$> getYesodSub
@@ -1012,10 +1018,10 @@ getHistoryR start page = do
 
 revisionDetails :: HasGitit master
                 => Revision
-                -> GWidget Gitit master ()
+                -> GW master ()
 revisionDetails rev = do
   toMaster <- lift getRouteToMaster
-  let toChange :: Change -> GHandler Gitit master (Text, Page)
+  let toChange :: Change -> GH master (Text, Page)
       toChange (Modified f) = ("modified",) <$> pageForPath f
       toChange (Deleted  f) = ("deleted",)  <$> pageForPath f
       toChange (Added    f) = ("added",)    <$> pageForPath f
@@ -1032,7 +1038,7 @@ revisionDetails rev = do
 pagination :: HasGitit master
            => Maybe (Route master)    -- back link
            -> Maybe (Route master)    -- forward link
-           -> GWidget Gitit master ()
+           -> GW master ()
 pagination pageBackLink pageForwardLink =
    [whamlet|
      <p .pagination>
@@ -1044,7 +1050,7 @@ pagination pageBackLink pageForwardLink =
      |]
 
 getActivityR :: HasGitit master
-              => Int -> GHandler Gitit master RepHtml
+              => Int -> GH master RepHtml
 getActivityR start = do
   let items = 20
   let offset = start - 1
@@ -1072,12 +1078,12 @@ getActivityR start = do
      ^{pagination pageBackLink pageForwardLink}
     |]
 
-getAtomSiteR :: HasGitit master => GHandler Gitit master RepAtom
+getAtomSiteR :: HasGitit master => GH master RepAtom
 getAtomSiteR = do
   tryCache "_feed"
   caching "_feed" $ feed Nothing >>= atomFeed
 
-getAtomPageR :: HasGitit master => Page -> GHandler Gitit master RepAtom
+getAtomPageR :: HasGitit master => Page -> GH master RepAtom
 getAtomPageR page = do
   path <- pathForPage page
   tryCache (path </> "_feed")
@@ -1085,7 +1091,7 @@ getAtomPageR page = do
 
 feed :: HasGitit master
      => Maybe Page  -- page, or nothing for all
-     -> GHandler Gitit master (Feed (Route master))
+     -> GH master (Feed (Route master))
 feed mbpage = do
   days <- feed_days <$> getConfig
   toMaster <- getRouteToMaster
@@ -1131,7 +1137,7 @@ feed mbpage = do
     }
 
 postExportR :: HasGitit master
-            => Page -> GHandler Gitit master (ContentType, Content)
+            => Page -> GH master (ContentType, Content)
 postExportR page = do
   exportFormats <- getExportFormats
   format <- runInputPost (ireq textField "format")
@@ -1162,7 +1168,7 @@ toSelfContained :: FilePath -> Maybe FilePath -> String -> IO String
 toSelfContained repopath userdata cont =
   inDirectory repopath $ makeSelfContained userdata cont
 
-getExportFormats :: GHandler Gitit master [(Text, (Text, WikiPage -> GHandler Gitit master (ContentType,Content)))]
+getExportFormats :: GH master [(Text, (Text, WikiPage -> GH master (ContentType,Content)))]
 getExportFormats = do
   conf <- getConfig
   let repopath = repository_path conf
@@ -1213,7 +1219,7 @@ getExportFormats = do
 
 basicExport :: ToContent a
             => String -> ContentType -> (WriterOptions -> Pandoc -> IO a)
-            -> WikiPage -> GHandler Gitit master (ContentType, Content)
+            -> WikiPage -> GH master (ContentType, Content)
 basicExport templ contentType writer = \wikiPage -> do
   conf <- getConfig
   template' <- liftIO $ getDefaultTemplate (pandoc_user_data conf) templ
@@ -1245,7 +1251,7 @@ setFilename :: Text -> GHandler sub master ()
 setFilename fname = setHeader "Content-Disposition"
                   $ "attachment; filename=\"" <> fname <> "\""
 
-getUploadR :: HasGitit master => GHandler Gitit master RepHtml
+getUploadR :: HasGitit master => GH master RepHtml
 getUploadR = do
   requireUser
   (form, enctype) <- generateFormPost $ uploadForm Nothing
@@ -1253,8 +1259,8 @@ getUploadR = do
 
 showUploadForm :: HasGitit master
                => Enctype
-               -> GWidget Gitit master ()
-               -> GHandler Gitit master RepHtml
+               -> GW master ()
+               -> GH master RepHtml
 showUploadForm enctype form = do
   toMaster <- getRouteToMaster
   makePage pageLayout{ pgName = Nothing
@@ -1285,7 +1291,7 @@ data Upload = Upload { uploadFile        :: FileInfo
 uploadForm :: HasGitit master
            => Maybe Upload
            -> Html
-           -> MForm Gitit master (FormResult Upload, GWidget Gitit master ())
+           -> MForm Gitit master (FormResult Upload, GW master ())
 uploadForm mbupload =
   renderDivs $ Upload
      <$> fileAFormReq (fieldSettingsLabel MsgFileToUpload){
@@ -1306,7 +1312,7 @@ uploadForm mbupload =
                                 Nothing          -> Left MsgInvalidPageName
 
 
-postUploadR :: HasGitit master => GHandler Gitit master RepHtml
+postUploadR :: HasGitit master => GH master RepHtml
 postUploadR = do
   user <- requireUser
   ((result, widget), enctype) <- runFormPost $ uploadForm Nothing
@@ -1344,12 +1350,12 @@ postUploadR = do
 -- expires all of them.  Non-pages Foo.jpg just get cached as Foo.jpg.
 ----------
 
-postExpireHomeR :: HasGitit master => GHandler Gitit master RepHtml
+postExpireHomeR :: HasGitit master => GH master RepHtml
 postExpireHomeR = do
   conf <- getConfig
   postExpireR $ textToPage $ front_page conf
 
-postExpireR :: HasGitit master => Page -> GHandler Gitit master RepHtml
+postExpireR :: HasGitit master => Page -> GH master RepHtml
 postExpireR page = do
   useCache <- use_cache <$> getConfig
   if useCache
@@ -1361,7 +1367,7 @@ postExpireR page = do
   redirect $ toMaster $ ViewR page
 
 caching :: HasReps a
-        => FilePath -> GHandler Gitit master a -> GHandler Gitit master a
+        => FilePath -> GH master a -> GH master a
 caching path handler = do
   conf <- getConfig
   if use_cache conf
@@ -1372,7 +1378,7 @@ caching path handler = do
        return result
      else handler
 
-cacheContent :: FilePath -> (ContentType, Content) -> GHandler Gitit master ()
+cacheContent :: FilePath -> (ContentType, Content) -> GH master ()
 cacheContent path (ct, content) = do
   conf <- getConfig
   if use_cache conf
@@ -1387,7 +1393,7 @@ cacheContent path (ct, content) = do
               putStrLn $ "Can't cache " ++ path
      else return ()
 
-tryCache :: FilePath -> GHandler Gitit master ()
+tryCache :: FilePath -> GH master ()
 tryCache path = do
   conf <- getConfig
   if use_cache conf
@@ -1406,7 +1412,7 @@ tryCache path = do
           else return ()
      else return ()
 
-expireCache :: FilePath -> GHandler Gitit master ()
+expireCache :: FilePath -> GH master ()
 expireCache path = do
   conf <- getConfig
   expireFeed (feed_minutes conf) (path </> "_feed")
@@ -1418,7 +1424,7 @@ expireCache path = do
     exists <- doesDirectoryExist fullpath
     when exists $ removeDirectoryRecursive fullpath
 
-expireCategories :: GHandler Gitit master ()
+expireCategories :: GH master ()
 expireCategories = do
   cachedir <- cache_dir <$> getConfig
   let fullpath = cachedir </> "_categories"
@@ -1427,7 +1433,7 @@ expireCategories = do
     when exists $ removeDirectoryRecursive fullpath
 
 -- | Expire the cached feed unless it is younger than 'minutes' old.
-expireFeed :: Integer -> FilePath -> GHandler Gitit master ()
+expireFeed :: Integer -> FilePath -> GH master ()
 expireFeed minutes path = do
   cachedir <- cache_dir <$> getConfig
   let fullpath = cachedir </> path
@@ -1445,7 +1451,7 @@ expireFeed minutes path = do
 -- filestore abstraction.  That is bad, but can only be fixed if we add
 -- more sophisticated searching options to filestore.
 
-getCategoriesR :: HasGitit master => GHandler Gitit master RepHtml
+getCategoriesR :: HasGitit master => GH master RepHtml
 getCategoriesR = do
   tryCache "_categories"
   conf <- getConfig
@@ -1464,7 +1470,7 @@ getCategoriesR = do
           <li><a href=@{toMaster $ CategoryR category}>#{category}
     |]
 
-getCategoryR :: HasGitit master => Text -> GHandler Gitit master RepHtml
+getCategoryR :: HasGitit master => Text -> GH master RepHtml
 getCategoryR category = do
   let cachepage = "_categories" </> T.unpack category
   tryCache cachepage
