@@ -17,8 +17,11 @@ we do something like the following:
    URL or a type-safe URL.
 
 _ preview in edit?
-_ plugins/interface
-  _ lift the transformation to a transform on WikiPage
+_ plugins/interface [started]
+  _ plugin loading
+  _ plugins in config file
+  _ sample plugins:
+    abc notation?
 _ config file [started]
   x make Front Page, Help configurable
   _ implement page locking as in gitit
