@@ -17,6 +17,10 @@ import System.Exit
 import Data.Text (Text)
 import qualified Data.Text as T
 
+-- TODO only for samplePlugin
+import Data.Generics
+import Data.Char (toLower)
+
 data Master = Master { getGitit :: Gitit, maxUploadSize :: Int }
 mkYesod "Master" [parseRoutes|
 / SubsiteR Gitit getGitit
@@ -152,6 +156,11 @@ err code msg = do
 warn :: String -> IO ()
 warn msg = hPutStrLn stderr msg
 
+
+-- TODO test
+samplePlugin :: Plugin
+samplePlugin = Plugin $ return . everywhere (mkT (toLower))
+
 main :: IO ()
 main = do
   res <- decodeEither `fmap` B.readFile "config/settings.yaml"
@@ -211,6 +220,6 @@ main = do
                                   }
                     , filestore = fs
                     , getStatic = st
-                    , plugins = []
+                    , plugins = [samplePlugin]
                     })
               maxsize)

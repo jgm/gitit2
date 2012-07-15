@@ -36,7 +36,7 @@ import Text.Pandoc.Shared (stringify, inDirectory, readDataFile)
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
-import Control.Monad (when, unless, filterM, mplus)
+import Control.Monad (when, unless, filterM, mplus, foldM)
 import qualified Data.Text as T
 import Data.Text (Text)
 import Data.ByteString.Lazy (ByteString)
@@ -69,7 +69,10 @@ infixr 5 <>
 (<>) :: Monoid m => m -> m -> m
 (<>) = mappend
 
-newtype Plugin = Plugin { unPlugin :: Gitit -> WikiPage -> IO WikiPage }
+newtype Plugin = Plugin { unPlugin :: WikiPage -> IO WikiPage }
+
+applyPlugin :: WikiPage -> Plugin -> IO WikiPage
+applyPlugin wp pl = unPlugin pl wp
 
 -- | A Gitit wiki.  For an example of how a Gitit subsite
 -- can be integrated into another Yesod app, see @src/gitit.hs@
@@ -644,6 +647,7 @@ stripHeader [] = (B.empty, B.empty)
 contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GHandler Gitit master WikiPage
 contentsToWikiPage page contents = do
   conf <- getConfig
+  plugins <- plugins <$> getYesodSub
   let (h,b) = stripHeader $ B.lines contents
   let metadata :: M.Map Text Value
       metadata = if B.null h
@@ -672,7 +676,8 @@ contentsToWikiPage page contents = do
   let vars = mapMaybe metadataToVar $ M.toList metadata
   let doc = reader $ toString b
   Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks doc
-  return $ WikiPage {
+  liftIO $ foldM applyPlugin
+           WikiPage {
              wpName        = pageToText page
            , wpFormat      = format
            , wpTOC         = toc
@@ -682,7 +687,7 @@ contentsToWikiPage page contents = do
            , wpVariables   = vars
            , wpCacheable   = True
            , wpContent     = blocks
-         }
+           } plugins
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GHandler Gitit master Html
