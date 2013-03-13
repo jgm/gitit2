@@ -8,7 +8,10 @@ import Network.Wai.Handler.Warp
 import Data.FileStore
 import Data.Yaml
 import Control.Applicative
-import Control.Monad (when)
+import Text.Pandoc
+import qualified Text.Pandoc.UTF8 as UTF8
+import System.FilePath ((<.>), (</>))
+import Control.Monad (when, unless)
 import System.Directory (removeDirectoryRecursive, doesDirectoryExist)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
@@ -18,9 +21,10 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Prelude hiding (catch)
 import Control.Exception (catch, SomeException)
+import qualified Data.Set as Set
+import Paths_gitit2 (getDataFileName)
 -- TODO only for samplePlugin
 import Data.Generics
-import Text.Pandoc.Definition
 
 data Master = Master { getGitit :: Gitit, maxUploadSize :: Int }
 mkYesod "Master" [parseRoutes|
@@ -175,11 +179,13 @@ main = do
              Left e  -> err 3 $ "Error reading configuration file.\n" ++ e
              Right x -> parseMonad parseConfig x
   let repopath = cfg_repository_path conf
+  repoexists <- doesDirectoryExist repopath
   fs <- case T.toLower (cfg_repository_type conf) of
              "git"       -> return $ gitFileStore repopath
              "darcs"     -> return $ darcsFileStore repopath
              "mercurial" -> return $ mercurialFileStore repopath
              x           -> err 13 $ "Unknown repository type: " ++ T.unpack x
+
   st <- staticDevel $ cfg_static_dir conf
   mimes <- case cfg_mime_types_file conf of
                 Nothing -> return mimeTypes
@@ -208,24 +214,66 @@ main = do
     when exists $ removeDirectoryRecursive cachedir
 
   let settings = defaultSettings{ settingsPort = cfg_port conf }
+  let gconfig = GititConfig{ mime_types = mimes
+                           , default_format = format
+                           , repository_path = cfg_repository_path conf
+                           , page_extension = cfg_page_extension conf
+                           , use_mathjax = cfg_use_mathjax conf
+                           , feed_days  = cfg_feed_days conf
+                           , feed_minutes  = cfg_feed_minutes conf
+                           , pandoc_user_data = cfg_pandoc_user_data conf
+                           , use_cache = cfg_use_cache conf
+                           , cache_dir = cfg_cache_dir conf
+                           , front_page = cfg_front_page conf
+                           , help_page = cfg_help_page conf
+                           , latex_engine = cfg_latex_engine conf
+                           }
+
+  unless repoexists $ initializeRepo gconfig fs
+
   let runner = runSettingsSocket settings sock
   runner =<< toWaiApp
-      (Master (Gitit{ config    = GititConfig{
-                                    mime_types = mimes
-                                  , default_format = format
-                                  , repository_path = cfg_repository_path conf
-                                  , page_extension = cfg_page_extension conf
-                                  , use_mathjax = cfg_use_mathjax conf
-                                  , feed_days  = cfg_feed_days conf
-                                  , feed_minutes  = cfg_feed_minutes conf
-                                  , pandoc_user_data = cfg_pandoc_user_data conf
-                                  , use_cache = cfg_use_cache conf
-                                  , cache_dir = cfg_cache_dir conf
-                                  , front_page = cfg_front_page conf
-                                  , help_page = cfg_help_page conf
-                                  , latex_engine = cfg_latex_engine conf
-                                  }
+      (Master (Gitit{ config = gconfig
                     , filestore = fs
                     , getStatic = st
                     })
               maxsize)
+
+initializeRepo :: GititConfig -> FileStore -> IO ()
+initializeRepo gconfig fs = do
+  putStrLn $ "Creating initial repository in " ++ repository_path gconfig
+  Data.FileStore.initialize fs
+  let toPandoc = readMarkdown def{ readerSmart = True, readerParseRaw = True }
+  -- note: we convert this (markdown) to the default page format
+  let converter f = do
+        contents <- getDataFileName f >>= UTF8.readFile
+        let defOpts lhs = def{
+               writerStandalone = False
+             , writerHTMLMathMethod = MathJax "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+             , writerExtensions = if lhs
+                                     then Set.insert Ext_literate_haskell
+                                          $ writerExtensions def
+                                     else writerExtensions def
+             }
+        return $ (case default_format gconfig of
+                          Markdown lhs -> writeMarkdown (defOpts lhs) . toPandoc
+                          LaTeX    lhs -> writeLaTeX (defOpts lhs) . toPandoc
+                          HTML     lhs -> writeHtmlString (defOpts lhs) . toPandoc
+                          RST      lhs -> writeRST (defOpts lhs) . toPandoc
+                          Textile  lhs -> writeTextile (defOpts lhs) . toPandoc) contents
+
+  let fmt = takeWhile (/=' ') $ show $ default_format gconfig
+  welcomecontents <- converter ("data" </> "FrontPage.page")
+  helpcontentsInitial <- converter ("data" </> "Help.page")
+  helpcontentsMarkup <- converter ("data" </> "markup" <.> fmt)
+  usersguidecontents <- converter "README.markdown"
+  -- include header in case user changes default format:
+  let header = "---\nformat: " ++ fmt ++ "\n...\n\n"
+  -- add front page, help page, and user's guide
+  let auth = Author "Gitit" ""
+  create fs (T.unpack (front_page gconfig) <.> "page") auth "Default front page"
+    $ header ++ welcomecontents
+  create fs (T.unpack (help_page gconfig) <.> "page") auth "Default help page"
+    $ header ++ helpcontentsInitial ++ "\n\n" ++ helpcontentsMarkup
+  create fs "Gitit User’s Guide.page" auth "User’s guide (README)"
+    $ header ++ usersguidecontents
