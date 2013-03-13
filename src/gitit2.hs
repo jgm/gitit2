@@ -16,10 +16,10 @@ import System.IO
 import System.Exit
 import Data.Text (Text)
 import qualified Data.Text as T
-
+import Prelude hiding (catch)
+import Control.Exception (catch, SomeException)
 -- TODO only for samplePlugin
 import Data.Generics
-import Data.Char (toLower)
 import Text.Pandoc.Definition
 
 data Master = Master { getGitit :: Gitit, maxUploadSize :: Int }
@@ -55,7 +55,7 @@ instance HasGitit Master where
   maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
   makePage = makeDefaultPage
-  getPlugins = return [samplePlugin]
+  getPlugins = return [] -- [samplePlugin]
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)
@@ -111,6 +111,7 @@ readMimeTypesFile f = catch
   handleMimeTypesFileNotFound
      where go []     m = m  -- skip blank lines
            go (x:xs) m = foldr (\ext -> M.insert ext $ B.pack x) m xs
+           handleMimeTypesFileNotFound :: SomeException -> IO (M.Map String ContentType)
            handleMimeTypesFileNotFound e = do
              warn $ "Could not parse mime types file.\n" ++ show e
              return mimeTypes

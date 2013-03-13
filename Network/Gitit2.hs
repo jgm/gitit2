@@ -31,8 +31,9 @@ import Data.FileStore as FS
 import Data.Char (toLower)
 import System.FilePath
 import Text.Pandoc
+import Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
 import Text.Pandoc.PDF (tex2pdf)
-import Text.Pandoc.Shared (stringify, inDirectory, readDataFile)
+import Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
 import Text.Pandoc.SelfContained (makeSelfContained)
 import Text.Pandoc.Builder (toList, text)
 import Control.Applicative
@@ -64,6 +65,7 @@ import Data.Yaml
 import System.Directory
 import System.Time (ClockTime (..), getClockTime)
 import Network.HTTP.Base (urlEncode, urlDecode)
+import qualified Data.Set as Set
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -636,7 +638,7 @@ getRawContents path rev = do
 
 pageToHtml :: HasGitit master => WikiPage -> GH master Html
 pageToHtml wikiPage = do
-  return $ writeHtml defaultWriterOptions{
+  return $ writeHtml def{
                writerWrapText = False
              , writerHtml5 = True
              , writerHighlight = True
@@ -664,17 +666,21 @@ contentsToWikiPage page contents = do
                     then M.empty
                     else maybe M.empty id
                          $ decode $! BS.concat $ B.toChunks h
-  let def = defaultParserState{ stateSmart = True }
   let formatStr = case M.lookup "format" metadata of
                          Just (String s) -> s
                          _               -> ""
   let format = maybe (default_format conf) id $ readPageFormat formatStr
+  let readerOpts literate = def{ readerSmart = True
+                               , readerExtensions =
+                                   if literate
+                                      then Set.insert Ext_literate_haskell pandocExtensions
+                                      else pandocExtensions }
   let (reader, lhs) = case format of
-                        Markdown l -> (readMarkdown def{stateLiterateHaskell = l},l)
-                        Textile  l -> (readTextile def{stateLiterateHaskell = l},l)
-                        LaTeX    l -> (readLaTeX def{stateLiterateHaskell = l},l)
-                        RST      l -> (readRST def{stateLiterateHaskell = l},l)
-                        HTML     l -> (readHtml def{stateLiterateHaskell = l},l)
+                        Markdown l -> (readMarkdown (readerOpts l), l)
+                        Textile  l -> (readTextile (readerOpts l), l)
+                        LaTeX    l -> (readLaTeX (readerOpts l), l)
+                        RST      l -> (readRST (readerOpts l), l)
+                        HTML     l -> (readHtml (readerOpts l), l)
   let fromBool (Bool t) = t
       fromBool _        = False
   let toc = maybe False fromBool (M.lookup "toc" metadata)
@@ -937,9 +943,6 @@ getDiffR fromRev toRev page = do
              $ \e -> case e of
                       FS.NotFound -> diff fs filePath (Just fromRev) (Just toRev)
                       _           -> throw e
-  let classFor B = ("unchanged" :: Text)
-      classFor F = "deleted"
-      classFor S = "added"
   makePage pageLayout{ pgName = Just page
                      , pgTabs = []
                      , pgSelectedTab = EditTab } $
@@ -947,8 +950,14 @@ getDiffR fromRev toRev page = do
      <h1 .title>#{page}
      <h2 .revision>#{fromRev} &rarr; #{toRev}
      <pre>
-        $forall (t,xs) <- rawDiff
-           <span .#{classFor t}>#{unlines xs}
+        $forall t <- rawDiff
+           $case t
+             $of Both xs _
+               <span .unchanged>#{unlines xs}</span>
+             $of First xs
+               <span .deleted>#{unlines xs}</span>
+             $of Second xs
+               <span .added>#{unlines xs}</span>
      |]
 
 getHistoryR :: HasGitit master
@@ -1125,7 +1134,8 @@ feed mbpage = do
                  }
   entries <- mapM toEntry [rev | rev <- revs, not (null $ revChanges rev) ]
   return Feed{
-        feedTitle = mr $ maybe MsgSiteFeedTitle MsgPageFeedTitle mbpage
+        feedAuthor = ""
+      , feedTitle = mr $ maybe MsgSiteFeedTitle MsgPageFeedTitle mbpage
       , feedLinkSelf = toMaster $ maybe AtomSiteR AtomPageR mbpage
       , feedLinkHome = toMaster HomeR
       , feedDescription = undefined -- only used for rss
@@ -1181,7 +1191,7 @@ getExportFormats = do
                 writeHtmlString opts{ writerSlideVariant = DZSlides
                               , writerHtml5 = True }))
     , ("EPUB", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts ->
-                 inDirectory repopath . writeEPUB Nothing [] opts))
+                 inDirectory repopath . writeEPUB opts))
     , ("Groff man", (".1", basicExport "man" typePlain $ pureWriter writeMan))
     , ("HTML", (".html", basicExport "html" typeHtml $ \opts -> selfcontained . writeHtmlString opts))
     , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
@@ -1190,7 +1200,7 @@ getExportFormats = do
     , ("Markdown", (".txt", basicExport "markdown" typePlain $ pureWriter writeMarkdown))
     , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain $ pureWriter writeMediaWiki))
     , ("ODT", (".odt", basicExport "opendocument" "application/vnd.oasis.opendocument.text"
-             $ \opts -> inDirectory repopath . writeODT Nothing opts))
+             $ \opts -> inDirectory repopath . writeODT opts))
     , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text"
                    $ pureWriter writeOpenDocument))
     , ("Org-mode", (".org", basicExport "org" typePlain $ pureWriter writeOrg)) ] ++
@@ -1202,8 +1212,7 @@ getExportFormats = do
                          Right pdf -> return pdf)) | isJust (latex_engine conf) ] ++
     [ ("Plain text", (".txt", basicExport "plain" typePlain $ pureWriter writePlain))
     , ("reStructuredText", (".txt", basicExport "rst" typePlain $ pureWriter writeRST))
-    , ("RTF", (".rtf", basicExport "rtf" "application/rtf" $ \opts d ->
-                   writeRTF opts <$> bottomUpM rtfEmbedImage d))
+    , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTFWithEmbeddedImages))
     , ("Textile", (".txt", basicExport "textile" typePlain $ pureWriter writeTextile))
     , ("S5", (".html", basicExport "s5" typeHtml $ \opts ->
                 selfcontained . writeHtmlString opts{ writerSlideVariant = S5Slides }))
@@ -1212,7 +1221,7 @@ getExportFormats = do
     , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" $ pureWriter writeTexinfo))
     , ("Word docx", (".docx", basicExport "docx"
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            $ \opts -> inDirectory repopath . writeDocx Nothing opts))
+            $ \opts -> inDirectory repopath . writeDocx opts))
     ]
 
 basicExport :: ToContent a
@@ -1232,18 +1241,20 @@ basicExport templ contentType writer = \wikiPage -> do
   let vars = mapMaybe metadataToVar $ M.toList $ wpMetadata wikiPage
   dzcore <- if templ == "dzslides"
                 then liftIO $ do
-                  dztempl <- readDataFile (pandoc_user_data conf)
+                  dztempl <- readDataFileUTF8 (pandoc_user_data conf)
                              $ "dzslides" </> "template.html"
                   return $ unlines
                       $ dropWhile (not . isPrefixOf "<!-- {{{{ dzslides core")
                       $ lines dztempl
                 else return ""
   rendered <- liftIO
-              $ writer defaultWriterOptions{
+              $ writer def{
                          writerTemplate = template
                        , writerSourceDirectory = repository_path conf
                        , writerStandalone = True
-                       , writerLiterateHaskell = wpLHS wikiPage
+                       , writerExtensions = if wpLHS wikiPage
+                                               then Set.insert Ext_literate_haskell pandocExtensions
+                                               else pandocExtensions
                        , writerTableOfContents = wpTOC wikiPage
                        , writerHTMLMathMethod = MathML Nothing
                        , writerVariables = ("dzslides-core",dzcore):vars }
