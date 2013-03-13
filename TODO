@@ -19,6 +19,13 @@ we do something like the following:
    Note: this applies to robots.txt and favicon.ico as well.
 
 _ preview in edit?
+  when you edit, all tabs should disappear accept edit and preview
+  hitting the preview tab should switch to the preview pane and
+  populate it with the result of rendering the current contenst of
+  the edit pane.
+
+_ switch to bootstrap for better tab interfaces etc?
+
 _ plugins/interface [started]
   _ plugin loading
   _ plugins in config file
