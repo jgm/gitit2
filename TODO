@@ -16,6 +16,8 @@ we do something like the following:
    and the `Either Text Route` lets the user either specify some external
    URL or a type-safe URL.
 
+   Note: this applies to robots.txt and favicon.ico as well.
+
 _ preview in edit?
 _ plugins/interface [started]
   _ plugin loading
