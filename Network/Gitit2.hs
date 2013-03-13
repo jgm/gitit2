@@ -60,7 +60,7 @@ import Control.Exception (throw, handle, try)
 import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
-import Yesod.Default.Handlers (getFaviconR, getRobotsR)
+import Yesod.Default.Handlers (getRobotsR, getFaviconR)
 import Data.Yaml
 import System.Directory
 import System.Time (ClockTime (..), getClockTime)
@@ -231,8 +231,8 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_static StaticR Static getStatic
 /_index IndexBaseR GET
 /_index/*Page  IndexR GET
-/favicon.ico FaviconR GET
-/robots.txt RobotsR GET
+/favicon.ico GititFaviconR GET
+/robots.txt GititRobotsR GET
 /_random RandomR GET
 /_raw/*Page RawR GET
 /_edit/*Page  EditR GET
@@ -433,6 +433,12 @@ isSourceFile path' = do
   let langs = languagesByFilename $ takeFileName path'
   return $ not (null langs || takeExtension path' == ".svg")
                          -- allow svg to be served as image
+
+getGititRobotsR :: GH m RepPlain
+getGititRobotsR = getRobotsR
+
+getGititFaviconR :: GH m ()
+getGititFaviconR = getFaviconR
 
 getHomeR :: HasGitit master => GH master RepHtml
 getHomeR = do
