@@ -35,7 +35,7 @@ _ config file [started]
   x make Front Page, Help configurable
   _ implement page locking as in gitit
   _ command-line option to specify config file? (but what about rest of config dir?)
-_ site initialization
+_ site initialization [started]
   _ explicit 'init' command? or wizard?
 _ user logins/accounts
   _ user pages (linked from history)
