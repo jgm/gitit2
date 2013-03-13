@@ -870,7 +870,7 @@ showEditForm :: HasGitit master
              -> GH master RepHtml
 showEditForm page route enctype form = do
   makePage pageLayout{ pgName = Just page
-                     , pgTabs = [ViewTab,EditTab,HistoryTab,DiscussTab]
+                     , pgTabs = [EditTab]
                      , pgSelectedTab = EditTab } $ do
     [whamlet|
       <h1>#{page}</h1>
