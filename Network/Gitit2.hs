@@ -254,6 +254,7 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 /_expire ExpireHomeR POST
 /_categories CategoriesR GET
 /_category/#Text CategoryR GET
+/_preview PreviewR POST
 /*Page     ViewR GET
 |]
 
@@ -514,6 +515,13 @@ getViewR page = do
   pathForPage page >>= tryCache
   pathForFile page >>= tryCache
   view Nothing page
+
+postPreviewR :: HasGitit master => GH master RepHtml
+postPreviewR = do
+  undefined -- TODO: get raw contents and settings from post params
+  -- return HTML for rendered page contents
+  -- a javascript gizmo will display this in a modal or something
+  -- factor out some of the code from view
 
 getMimeType :: FilePath -> GH master ContentType
 getMimeType fp = do
