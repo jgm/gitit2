@@ -279,33 +279,12 @@ makeDefaultPage layout content = do
            Just _  -> StaticRoute ["css","print.css"] []
            Nothing -> StaticRoute ["css","custom.css"] []
     addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
+    addScript $ toMaster $ StaticR $ StaticRoute ["js","bootstrap.min.js"] []
     atomLink (toMaster AtomSiteR) "Atom feed for the wiki"
     toWidget $ [lucius|input.hidden { display: none; } |]
     [whamlet|
-    <div #doc3 .yui-t1>
-      <div #yui-main>
-        <div #maincol .yui-b>
-          <div #userbox>
-          $maybe page <- pgName layout
-            <ul .tabs>
-              $if showTab ViewTab
-                $if isDiscussPage page
-                  <li class=#{tabClass ViewTab}>
-                    <a href=@{toMaster $ ViewR $ discussedPage page}>_{MsgPage}</a>
-                $else
-                  <li class=#{tabClass ViewTab}>
-                    <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
-              $if showTab EditTab
-                <li class=#{tabClass EditTab}>
-                  <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
-              $if showTab HistoryTab
-                <li class=#{tabClass HistoryTab}>
-                  <a href=@{toMaster $ HistoryR 1 page}>_{MsgHistory}</a>
-              $if showTab DiscussTab
-                <li class=#{tabClass DiscussTab}><a href=@{toMaster $ ViewR $ discussPageFor page}>_{MsgDiscuss}</a>
-          <div #content>
-            ^{content}
-      <div #sidebar .yui-b .first>
+    <div #container>
+      <div #sidebar>
         <div #logo>
           <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
         $if pgSiteNav layout
@@ -342,6 +321,27 @@ makeDefaultPage layout content = do
                     $forall (f,_) <- exportFormats
                       <option value=#{f}>#{f}
                   <input type="submit" id="export" name="export" value=_{MsgExport}>
+      <div #maincol>
+        <div #userbox>
+        $maybe page <- pgName layout
+          <ul .tabs>
+            $if showTab ViewTab
+              $if isDiscussPage page
+                <li class=#{tabClass ViewTab}>
+                  <a href=@{toMaster $ ViewR $ discussedPage page}>_{MsgPage}</a>
+              $else
+                <li class=#{tabClass ViewTab}>
+                  <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
+            $if showTab EditTab
+              <li class=#{tabClass EditTab}>
+                <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
+            $if showTab HistoryTab
+              <li class=#{tabClass HistoryTab}>
+                <a href=@{toMaster $ HistoryR 1 page}>_{MsgHistory}</a>
+            $if showTab DiscussTab
+              <li class=#{tabClass DiscussTab}><a href=@{toMaster $ ViewR $ discussPageFor page}>_{MsgDiscuss}</a>
+        <div #content>
+          ^{content}
   |]
 
 -- HANDLERS and utility functions, not exported:

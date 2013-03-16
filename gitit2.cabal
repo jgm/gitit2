@@ -17,12 +17,15 @@ data-files:        README.markdown
                    messages/en.msg
                    static/favicon.ico
                    static/robots.txt
+                   static/js/bootstrap.min.js
                    static/js/jquery-1.7.2.min.js
                    static/js/jquery-ui-1.8.21.custom.min.js
                    static/img/logo.png
                    static/img/icons/feed.png
                    static/img/icons/folder.png
                    static/img/icons/page.png
+                   static/img/glyphicons-halflings.png
+                   static/img/glyphicons-halflings-white.png
                    static/css/custom.css
                    static/css/ie.css
                    static/css/reset-fonts-grids.css
