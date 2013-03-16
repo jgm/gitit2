@@ -60,7 +60,6 @@ import Control.Exception (throw, handle, try)
 import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
-import Yesod.Default.Handlers (getRobotsR, getFaviconR)
 import Data.Yaml
 import System.Directory
 import System.Time (ClockTime (..), getClockTime)
@@ -115,6 +114,7 @@ data GititConfig = GititConfig{
      , default_format   :: PageFormat               -- ^ Default format for wiki pages
      , repository_path  :: FilePath                 -- ^ Path to wiki
      , page_extension   :: FilePath                 -- ^ Extension for page files
+     , static_path      :: FilePath                 -- ^ Path of static dir
      , use_mathjax      :: Bool                     -- ^ Link to mathjax script
      , feed_days        :: Integer                  -- ^ Days back for feed entries
      , feed_minutes     :: Integer                  -- ^ Minutes to cache feed before refresh
@@ -229,10 +229,10 @@ mkYesodSub "Gitit" [ ClassP ''HasGitit [VarT $ mkName "master"]
 / HomeR GET
 /_help HelpR GET
 /_static StaticR Static getStatic
+/robots.txt GititRobotsR GET
+/favicon.ico GititFaviconR GET
 /_index IndexBaseR GET
 /_index/*Page  IndexR GET
-/favicon.ico GititFaviconR GET
-/robots.txt GititRobotsR GET
 /_random RandomR GET
 /_raw/*Page RawR GET
 /_edit/*Page  EditR GET
@@ -435,10 +435,14 @@ isSourceFile path' = do
                          -- allow svg to be served as image
 
 getGititRobotsR :: GH m RepPlain
-getGititRobotsR = getRobotsR
+getGititRobotsR = do
+  conf <- getConfig
+  sendFile "text/plain" (static_path conf </> "robots.txt")
 
 getGititFaviconR :: GH m ()
-getGititFaviconR = getFaviconR
+getGititFaviconR = do
+  conf <- getConfig
+  sendFile "image/x-icon" (static_path conf </> "favicon.ico")
 
 getHomeR :: HasGitit master => GH master RepHtml
 getHomeR = do

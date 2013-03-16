@@ -4,7 +4,7 @@ repository_path: wikidata
 repository_type: git
 page_extension: .page
 default_format: markdown
-listen_address: 127.0.0.1
+listen_address: 0.0.0.0
 use_mathjax: true
 feed_days: 14
 use_cache: true

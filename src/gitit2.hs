@@ -218,6 +218,7 @@ main = do
                            , default_format = format
                            , repository_path = cfg_repository_path conf
                            , page_extension = cfg_page_extension conf
+                           , static_path = cfg_static_dir conf
                            , use_mathjax = cfg_use_mathjax conf
                            , feed_days  = cfg_feed_days conf
                            , feed_minutes  = cfg_feed_minutes conf

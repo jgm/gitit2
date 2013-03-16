@@ -16,8 +16,8 @@ homepage:          http://gitit.net
 data-files:        README.markdown
                    messages/en.msg
                    config/settings.yaml
-                   config/favicon.ico
-                   config/robots.txt
+                   static/favicon.ico
+                   static/robots.txt
                    static/js/jquery-1.7.2.min.js
                    static/js/jquery-ui-1.8.21.custom.min.js
                    static/img/logo.png
@@ -59,7 +59,6 @@ library
                  -- , yesod-platform                >= 1.1        && < 1.2
                  , yesod                         >= 1.1        && < 1.2
                  , yesod-static                  >= 1.1        && < 1.2
-                 , yesod-default                 >= 1.1        && < 1.2
                  , yesod-core                    >= 1.1        && < 1.2
                  , yesod-form                    >= 1.1        && < 1.3
                  , yesod-test                    >= 0.3        && < 0.4
