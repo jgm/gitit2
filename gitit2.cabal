@@ -15,7 +15,6 @@ build-type:        Simple
 homepage:          http://gitit.net
 data-files:        README.markdown
                    messages/en.msg
-                   config/settings.yaml
                    static/favicon.ico
                    static/robots.txt
                    static/js/jquery-1.7.2.min.js
@@ -30,6 +29,7 @@ data-files:        README.markdown
                    static/css/hk-pyg.css
                    static/css/print.css
                    static/css/screen.css
+                   settings.yaml
                    data/FrontPage.page
                    data/Help.page
                    data/markup.Markdown
