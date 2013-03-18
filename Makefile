@@ -17,8 +17,8 @@ veryclean: clean
 
 css: static/css/screen.css static/css/bootstrap.min.css
 
-static/css/bootstrap.min.css: ../bootstrap/less/bootstrap.less
+static/css/bootstrap.min.css: bootstrap/less/bootstrap.less
 	lessc --compress $@ > $@
 
 static/css/screen.css: data/screen.less
-	lessc --compress --include-path=../bootstrap/less $< > $@
+	lessc --compress --include-path=bootstrap/less $< > $@
