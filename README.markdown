@@ -42,3 +42,5 @@ What is still missing?
 * Option to disable sanitization?
 * System for customizing CSS
 
+[Yesod]: http://www.yesodweb.com/
+
