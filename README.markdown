@@ -15,12 +15,27 @@ If you run gitit2 from the source directory, a default
 on the settings in `settings.yaml`.  You will then be able
 to view your wiki at <http://localhost:3000>.
 
+Why a rewrite?
+--------------
+
+The old code base was ugly, for a variety of reasons, including
+the fact that it dates from an early phase in happstack's history
+(when many things that are easy now were hard) and an early phase
+in the author's Haskell experience.  Yesod provides abstractions,
+such as type safe routes, that make many of the ugly parts go away.
+The new code base should be much smaller, easier to modify, and
+easier to be confident in.
+
+gitit2 is implemented as a Yesod subsite, making it trivial
+to embed a gitit wiki in a Yesod application.
+
+What is still missing?
+----------------------
+
 The basic wiki functions have all been implemented. You can
 create, edit, and modify pages.  You can search, view
 history, and comment.  You can export in any format that
 pandoc supports.
-
-What is still missing?
 
 * User login -- currently there is no access control.
 * Preview in edit.
