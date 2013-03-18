@@ -59,3 +59,20 @@ pandoc supports.
 
 [Yesod]: http://www.yesodweb.com/
 
+Hacking gitit2
+--------------
+
+Here are some notes for those who want to modify or
+add to the code.
+
+* The library is all in one file, `Network/Gitit.hs`.
+* The executable, which uses the library, is in `src/gitit.hs`.
+* There are no longer any templates.  The HTML is produced
+  by hamlet code in `Network/Gitit.hs`.
+* To change the css, modify `data/screen.less`, then do
+  `make css`.  This requires that you have `lessc` in your
+  path:  `npm install -g less`.  It also requires bootstrap,
+  which is included as a git submodule:
+  `git submodule update --init`.
+
+
