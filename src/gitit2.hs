@@ -174,10 +174,10 @@ samplePlugin = Plugin $ \wp -> do
 
 main :: IO ()
 main = do
-  settings <- getDataFileName "settings.yaml"
+  settingsFile <- getDataFileName "settings.yaml"
   -- TODO allow command line specification of settings file
   -- let the data file provide defaults
-  res <- decodeEither `fmap` B.readFile settings
+  res <- decodeEither `fmap` B.readFile settingsFile
   conf <- case res of
              Left e  -> err 3 $ "Error reading configuration file.\n" ++ e
              Right x -> parseMonad parseConfig x
