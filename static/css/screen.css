@@ -855,11 +855,16 @@ a.label:hover,a.label:focus,a.badge:hover,a.badge:focus{color:#ffffff;text-decor
 .show{display:block;}
 .invisible{visibility:hidden;}
 .affix{position:fixed;}
+#container{margin-left:-20px;*zoom:1;}#container:before,#container:after{display:table;content:"";line-height:0;}
+#container:after{clear:both;}
+#container #userbox{float:left;margin-left:660px;width:140px;}
+#container:before,#container:after{display:table;content:"";line-height:0;}
+#container:after{clear:both;}
+#container #sidebar{float:left;margin-left:20px;width:140px;}
+#container #maincol{float:left;margin-left:20px;width:620px;}
 html{background:#f9f9f9;color:black;}
 body{margin:10px;}
 label{display:block;}
-fieldset{border:1px solid #ccc;padding:1em;}
-legend{font-weight:bold;margin-left:1em;padding:4px;}
 textarea,input[type='text'],input[type='password'],select{border:1px solid #ccc;background:#fff;}
 textarea:hover,input[type='text']:hover,input[type='password']:hover,select:hover{border-color:#aaa;}
 textarea:focus,input[type='text']:focus,input[type='password']:focus,select:focus{border-color:#888;outline:2px solid #ffffaa;}
@@ -905,16 +910,13 @@ input.search_term{width:95%;}
 button:hover,a.button:hover{background-color:#dff4ff;border:1px solid #c2e1ef;color:#336699;}
 a.button:active,button:active{background-color:#6299c5;border:1px solid #6299c5;color:#fff;}
 h1>a:link,h1>a:active,h1>a:hover,h1>a:focus,h1>a:visited,h2>a:link,h2>a:active,h2>a:hover,h2>a:focus,h2>a:visited,h3>a:link,h3>a:active,h3>a:hover,h3>a:focus,h3>a:visited,h4>a:link,h4>a:active,h4>a:hover,h4>a:focus,h4>a:visited,h5>a:link,h5>a:active,h5>a:hover,h5>a:focus,h5>a:visited,h6>a:link,h6>a:active,h6>a:hover,h6>a:focus,h6>a:visited{color:black;text-decoration:none;}
-#container{margin-left:-20px;*zoom:1;}#container:before,#container:after{display:table;content:"";line-height:0;}
-#container:after{clear:both;}
-#container #sidebar{float:left;margin-left:20px;width:140px;}
-#container #maincol{float:left;margin-left:20px;width:620px;}
 #content{border:1px solid #ccc;background-color:#fff;padding:1em;font-size:108%;}
 #content p,#content pre,#content li{line-height:140%;}
 #userbox{text-align:right;font-weight:bold;margin:1em;}
 #logo{min-height:50px;}
 #sidebar fieldset{background-color:white;margin-bottom:1em;padding:0;font-size:93%;}
 #sidebar fieldset,#sidebar fieldset legend{font-weight:normal;}
+#sidebar legend{font-size:120%;}
 #sidebar ul{padding:0;margin:0;margin-left:1.6em;line-height:1.5em;}
 #sidebar ul li{color:#888;list-style:square;}
 div#TOC{background-color:#f9f9f9;border:10px solid white;margin:0.8em;margin-right:0;padding:0.4em;}
