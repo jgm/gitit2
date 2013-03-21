@@ -283,65 +283,66 @@ makeDefaultPage layout content = do
     atomLink (toMaster AtomSiteR) "Atom feed for the wiki"
     toWidget $ [lucius|input.hidden { display: none; } |]
     [whamlet|
-    <div #container>
-      <div #sidebar>
-        <div #logo>
-          <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
-        $if pgSiteNav layout
-          <div .sitenav>
-            <fieldset>
-              <legend>Site
-              <ul>
-                <li><a href=@{toMaster HomeR}>_{MsgFrontPage}</a>
-                <li><a href=@{toMaster IndexBaseR}>_{MsgDirectory}</a>
-                <li><a href=@{toMaster CategoriesR}>_{MsgCategories}</a>
-                <li><a href=@{toMaster RandomR}>_{MsgRandomPage}</a>
-                <li><a href=@{toMaster $ ActivityR 1}>_{MsgRecentActivity}</a>
-                <li><a href=@{toMaster UploadR}>_{MsgUploadFile}</a></li>
-                <li><a href=@{toMaster AtomSiteR} type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
-                <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
-              <form method="post" action=@{searchRoute} id="searchform">
-               <input type="text" name="patterns" id="patterns">
-               <input type="submit" name="search" id="search" value="_{MsgSearch}">
-              <form method="post" action=@{goRoute} id="goform">
-                <input type="text" name="gotopage" id="gotopage">
-                <input type="submit" name="go" id="go" value="_{MsgGo}">
-        $if pgPageTools layout
-          <div .pagetools>
-            $maybe page <- pgName layout
-              <fieldset>
-                <legend>This page</legend>
-                <ul>
-                  <li><a href=@{toMaster $ RawR page}>_{MsgRawPageSource}</a>
-                  <li><a href="@{toMaster $ ViewR page}?print">_{MsgPrintableVersion}</a>
-                  <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
-                  <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
-                <form method="post" #exportbox action=@{toMaster $ ExportR page}>
-                  <select name="format">
-                    $forall (f,_) <- exportFormats
-                      <option value=#{f}>#{f}
-                  <input type="submit" id="export" name="export" value=_{MsgExport}>
-      <div #maincol>
-        <div #userbox>
-        $maybe page <- pgName layout
-          <ul .tabs>
-            $if showTab ViewTab
-              $if isDiscussPage page
-                <li class=#{tabClass ViewTab}>
-                  <a href=@{toMaster $ ViewR $ discussedPage page}>_{MsgPage}</a>
-              $else
-                <li class=#{tabClass ViewTab}>
-                  <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
-            $if showTab EditTab
-              <li class=#{tabClass EditTab}>
-                <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
-            $if showTab HistoryTab
-              <li class=#{tabClass HistoryTab}>
-                <a href=@{toMaster $ HistoryR 1 page}>_{MsgHistory}</a>
-            $if showTab DiscussTab
-              <li class=#{tabClass DiscussTab}><a href=@{toMaster $ ViewR $ discussPageFor page}>_{MsgDiscuss}</a>
-        <div #content>
-          ^{content}
+    <div .container>
+     <div .row>
+       <div #sidebar .span2>
+         <div #logo>
+           <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
+         $if pgSiteNav layout
+           <div .sitenav>
+             <fieldset>
+               <legend>Site
+               <ul>
+                 <li><a href=@{toMaster HomeR}>_{MsgFrontPage}</a>
+                 <li><a href=@{toMaster IndexBaseR}>_{MsgDirectory}</a>
+                 <li><a href=@{toMaster CategoriesR}>_{MsgCategories}</a>
+                 <li><a href=@{toMaster RandomR}>_{MsgRandomPage}</a>
+                 <li><a href=@{toMaster $ ActivityR 1}>_{MsgRecentActivity}</a>
+                 <li><a href=@{toMaster UploadR}>_{MsgUploadFile}</a></li>
+                 <li><a href=@{toMaster AtomSiteR} type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
+                 <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
+               <form method="post" action=@{searchRoute} id="searchform">
+                <input type="text" name="patterns" id="patterns">
+                <input type="submit" name="search" id="search" value="_{MsgSearch}">
+               <form method="post" action=@{goRoute} id="goform">
+                 <input type="text" name="gotopage" id="gotopage">
+                 <input type="submit" name="go" id="go" value="_{MsgGo}">
+         $if pgPageTools layout
+           <div .pagetools>
+             $maybe page <- pgName layout
+               <fieldset>
+                 <legend>This page</legend>
+                 <ul>
+                   <li><a href=@{toMaster $ RawR page}>_{MsgRawPageSource}</a>
+                   <li><a href="@{toMaster $ ViewR page}?print">_{MsgPrintableVersion}</a>
+                   <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
+                   <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
+                 <form method="post" #exportbox action=@{toMaster $ ExportR page}>
+                   <select name="format">
+                     $forall (f,_) <- exportFormats
+                       <option value=#{f}>#{f}
+                   <input type="submit" id="export" name="export" value=_{MsgExport}>
+       <div #maincol .span8>
+         <div #userbox>
+         $maybe page <- pgName layout
+           <ul .tabs>
+             $if showTab ViewTab
+               $if isDiscussPage page
+                 <li class=#{tabClass ViewTab}>
+                   <a href=@{toMaster $ ViewR $ discussedPage page}>_{MsgPage}</a>
+               $else
+                 <li class=#{tabClass ViewTab}>
+                   <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
+             $if showTab EditTab
+               <li class=#{tabClass EditTab}>
+                 <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
+             $if showTab HistoryTab
+               <li class=#{tabClass HistoryTab}>
+                 <a href=@{toMaster $ HistoryR 1 page}>_{MsgHistory}</a>
+             $if showTab DiscussTab
+               <li class=#{tabClass DiscussTab}><a href=@{toMaster $ ViewR $ discussPageFor page}>_{MsgDiscuss}</a>
+         <div #content>
+           ^{content}
   |]
 
 -- HANDLERS and utility functions, not exported:
