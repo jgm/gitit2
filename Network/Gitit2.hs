@@ -24,7 +24,7 @@ import Control.Exception (catch)
 import qualified Data.Map as M
 import Yesod hiding (MsgDelete)
 import Yesod.Static
-import Language.Haskell.TH hiding (dyn)
+import Language.Haskell.TH hiding (dyn, Inline)
 import Data.Ord (comparing)
 import Data.List (inits, find, sortBy, isPrefixOf, sort, nub)
 import Data.FileStore as FS
