@@ -62,7 +62,7 @@ import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
 import Data.Yaml
 import System.Directory
-import System.Time (ClockTime (..), getClockTime)
+import Data.Time.Clock (diffUTCTime)
 import Network.HTTP.Base (urlEncode, urlDecode)
 import qualified Data.Set as Set
 
@@ -1474,9 +1474,9 @@ expireFeed minutes path = do
   liftIO $ do
     exists <- doesDirectoryExist fullpath
     when exists $ do
-      TOD seconds _ <- getModificationTime fullpath
-      TOD seconds' _ <- getClockTime
-      unless ((seconds' - seconds) < (minutes * 60))
+      seconds <- getModificationTime fullpath
+      seconds' <- getCurrentTime
+      unless (diffUTCTime seconds' seconds < realToFrac (minutes * 60))
         $ removeDirectoryRecursive fullpath
 
 -- categories ------------
