@@ -1,7 +1,35 @@
 Features to implement:
 
-Michael Snoyman suggests that instead of using a static subsite,
-we do something like the following:
+_ tabs - use bootstrap tabs instead of the old way
+
+_ preview in edit?
+  when you edit, all tabs should disappear accept edit and preview
+  hitting the preview tab should switch to the preview pane and
+  populate it with the result of rendering the current contenst of
+  the edit pane.
+
+_ plugins/interface [started]
+  _ plugin loading
+  _ plugins in config file
+  _ sample plugins: abc notation?
+
+_ config file [started]
+  x make Front Page, Help configurable
+  _ implement page locking (no edit, no delete) as in gitit
+  _ command-line option to specify config file? (but what about rest of config dir?)
+
+_ site initialization [started]
+  _ explicit 'init' command? or wizard?
+
+_ user logins/accounts
+  _ user pages (linked from history)
+
+_ documentation
+  _ README
+  _ man page produced from README
+
+_ Michael Snoyman suggests that instead of using a static subsite,
+  we do something like the following:
 
    The only recommendation that comes to mind
    would be to put some of the hard-coded static paths used in
@@ -18,28 +46,4 @@ we do something like the following:
 
    Note: this applies to robots.txt and favicon.ico as well.
 
-_ preview in edit?
-  when you edit, all tabs should disappear accept edit and preview
-  hitting the preview tab should switch to the preview pane and
-  populate it with the result of rendering the current contenst of
-  the edit pane.
-
-_ switch to bootstrap for better tab interfaces etc?
-
-_ plugins/interface [started]
-  _ plugin loading
-  _ plugins in config file
-  _ sample plugins:
-    abc notation?
-_ config file [started]
-  x make Front Page, Help configurable
-  _ implement page locking as in gitit
-  _ command-line option to specify config file? (but what about rest of config dir?)
-_ site initialization [started]
-  _ explicit 'init' command? or wizard?
-_ user logins/accounts
-  _ user pages (linked from history)
-_ documentation
-  _ README
-  _ man page produced from README
 
