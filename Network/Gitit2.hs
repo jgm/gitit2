@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
-             ScopedTypeVariables, TupleSections #-}
+             FlexibleContexts, ScopedTypeVariables, TupleSections #-}
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
