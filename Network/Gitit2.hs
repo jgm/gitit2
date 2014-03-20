@@ -266,10 +266,10 @@ getGititFaviconR = do
   conf <- getConfig
   sendFile "image/x-icon" (static_path conf </> "favicon.ico")
 
-getHomeR :: HasGitit master => GH master Html
+getHomeR :: HasGitit master => GH master ()
 getHomeR = do
   conf <- getConfig
-  getViewR $ textToPage $ front_page conf
+  redirect $ ViewR $ textToPage $ front_page conf
 
 getHelpR :: HasGitit master => GH master Html
 getHelpR = do
