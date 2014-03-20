@@ -36,7 +36,7 @@ instance Yesod Master where
     PageContent title headTags bodyTags <- widgetToPageContent $ do
       contents
     mmsg <- getMessage
-    hamletToRepHtml [hamlet|
+    giveUrlRenderer [hamlet|
         $doctype 5
         <html>
           <head>
@@ -216,7 +216,7 @@ main = do
     exists <- doesDirectoryExist cachedir
     when exists $ removeDirectoryRecursive cachedir
 
-  let settings = defaultSettings{ settingsPort = cfg_port conf }
+  let settings = setPort (cfg_port conf) defaultSettings
   let gconfig = GititConfig{ mime_types = mimes
                            , default_format = format
                            , repository_path = cfg_repository_path conf
