@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              FlexibleContexts, ScopedTypeVariables, TupleSections #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
@@ -24,14 +25,12 @@ import Control.Exception (catch)
 import qualified Data.Map as M
 import Yesod hiding (MsgDelete)
 import Yesod.Static
-import Language.Haskell.TH hiding (dyn, Inline)
 import Data.Ord (comparing)
 import Data.List (inits, find, sortBy, isPrefixOf, sort, nub)
 import Data.FileStore as FS
 import Data.Char (toLower)
 import System.FilePath
 import Text.Pandoc
-import Text.Pandoc.Options (WriterOptions(..))
 import Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
 import Text.Pandoc.PDF (makePDF)
 import Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
