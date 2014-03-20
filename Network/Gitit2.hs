@@ -169,21 +169,21 @@ makeDefaultPage layout content = do
 -- HANDLERS and utility functions, not exported:
 
 -- | Convert links with no URL to wikilinks.
-convertWikiLinks :: Inline -> GH master Inline
-convertWikiLinks (Link ref ("", "")) = do
+convertWikiLinks :: Text -> Inline -> GH master Inline
+convertWikiLinks prefix (Link ref ("", "")) = do
   toMaster <- getRouteToParent
   toUrl <- lift $ getUrlRender
-  let route = ViewR $ textToPage $ T.pack $ stringify ref
+  let route = ViewR $ textToPage $ T.append prefix $ T.pack $ stringify ref
   return $ Link ref (T.unpack $ toUrl $ toMaster route, "")
-convertWikiLinks (Image ref ("", "")) = do
+convertWikiLinks prefix (Image ref ("", "")) = do
   toMaster <- getRouteToParent
   toUrl <- lift $ getUrlRender
-  let route = ViewR $ textToPage $ T.pack $ stringify ref
+  let route = ViewR $ textToPage $ T.append prefix $ T.pack $ stringify ref
   return $ Image ref (T.unpack $ toUrl $ toMaster route, "")
-convertWikiLinks x = return x
+convertWikiLinks _ x = return x
 
-addWikiLinks :: Pandoc -> GH master Pandoc
-addWikiLinks = bottomUpM convertWikiLinks
+addWikiLinks :: Text -> Pandoc -> GH master Pandoc
+addWikiLinks prefix = bottomUpM (convertWikiLinks prefix)
 
 sanitizePandoc :: Pandoc -> Pandoc
 sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
@@ -523,7 +523,9 @@ contentsToWikiPage page contents = do
       fromBool _        = False
   let toc = maybe False fromBool (M.lookup "toc" metadata)
   let doc = reader $ toString b
-  Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks doc
+  let pageToPrefix (Page []) = T.empty
+      pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
+  Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks (pageToPrefix page) doc
   foldM applyPlugin
            WikiPage {
              wpName        = pageToText page
