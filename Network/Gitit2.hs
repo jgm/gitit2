@@ -85,8 +85,8 @@ getConfig = config <$> getYesod
 makeDefaultPage :: HasGitit master => PageLayout -> WidgetT master IO () -> GH master Html
 makeDefaultPage layout content = do
   toMaster <- getRouteToParent
-  let logoRoute = toMaster $ StaticR $ StaticRoute ["img","logo.png"] []
-  let feedRoute = toMaster $ StaticR $ StaticRoute ["img","icons","feed.png"] []
+  let logoRoute = staticR $ StaticRoute ["img","logo.png"] []
+  let feedRoute = staticR $ StaticRoute ["img","icons","feed.png"] []
 
   let searchRoute = toMaster SearchR
   let goRoute = toMaster GoR
@@ -96,19 +96,19 @@ makeDefaultPage layout content = do
   printLayout <- lookupGetParam "print"
   exportFormats <- getExportFormats
   lift $ defaultLayout $ do
-    addStylesheet $ toMaster $ StaticR $
+    addStylesheet $ staticR $
       case printLayout of
            Just _  -> StaticRoute ["css","print.css"] []
            Nothing -> StaticRoute ["css","custom.css"] []
-    addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
-    addScript $ toMaster $ StaticR $ StaticRoute ["js","bootstrap.min.js"] []
+    addScript $ staticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
+    addScript $ staticR $ StaticRoute ["js","bootstrap.min.js"] []
     atomLink (toMaster AtomSiteR) "Atom feed for the wiki"
     toWidget $ [lucius|input.hidden { display: none; } |]
     [whamlet|
     <div .container>
      <div .row>
        <div #sidebar .span2>
-         <div #logo>
+         <div #$ logo>
            <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
          $if pgSiteNav layout
            <div .sitenav>
@@ -831,7 +831,7 @@ getHistoryR start page = do
   makePage pageLayout{ pgName = Just page
                      , pgTabs = tabs
                      , pgSelectedTab = HistoryTab } $ do
-   addScript $ toMaster $ StaticR $ StaticRoute ["js","jquery-ui-1.8.21.custom.min.js"] []
+   addScript $ staticR $ StaticRoute ["js","jquery-ui-1.8.21.custom.min.js"] []
    toWidget [julius|
       $(document).ready(function(){
           $(".difflink").draggable({helper: "clone"});

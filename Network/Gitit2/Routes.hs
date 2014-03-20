@@ -42,13 +42,14 @@ class (Yesod master, RenderMessage master FormMessage,
   makePage :: PageLayout -> WidgetT master IO () -> GH master Html
   -- | Plugins.
   getPlugins :: GH master [Plugin master]
+  -- | Route for static content
+  staticR :: Route Static -> Route master
 
 -- | A Gitit wiki.  For an example of how a Gitit subsite
 -- can be integrated into another Yesod app, see @src/gitit.hs@
 -- in the package source.
 data Gitit = Gitit{ config        :: GititConfig  -- ^ Wiki config options.
                   , filestore     :: FileStore    -- ^ Filestore with pages.
-                  , getStatic     :: Static       -- ^ Static subsite.
                   }
 
 -- | Configuration for a gitit wiki.
@@ -168,8 +169,6 @@ data WikiPage = WikiPage {
 mkYesodSubData "Gitit" [parseRoutesNoCheck|
 / HomeR GET
 /_help HelpR GET
-
-/_static StaticR Static getStatic
 
 /robots.txt GititRobotsR GET
 /favicon.ico GititFaviconR GET
