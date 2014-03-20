@@ -47,7 +47,7 @@ instance Yesod Master where
                <p.message>#{msg}
              ^{bodyTags}
         |]
-  maximumContentLength x _ = fromIntegral $ maxUploadSize x
+  maximumContentLength x _ = Just $ fromIntegral $ maxUploadSize x
 
 instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage

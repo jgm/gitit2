@@ -46,6 +46,7 @@ flag executable
 
 library
     exposed-modules: Network.Gitit2
+                     Network.Gitit2.Routes
     extensions: TemplateHaskell
                 QuasiQuotes
                 OverloadedStrings
