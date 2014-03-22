@@ -26,17 +26,22 @@ import Paths_gitit2 (getDataFileName)
 -- TODO only for samplePlugin
 import Data.Generics
 
-data Master = Master { getGitit :: Gitit, maxUploadSize :: Int }
+data Master = Master { getGitit :: Gitit, maxUploadSize :: Int, getStatic :: Static }
 mkYesod "Master" [parseRoutes|
-/ SubsiteR Gitit getGitit
+/static StaticR Static getStatic
+/wiki SubsiteR Gitit getGitit
+/ RootR GET
 |]
+
+getRootR :: Handler ()
+getRootR = redirect $ SubsiteR HomeR
 
 instance Yesod Master where
   defaultLayout contents = do
     PageContent title headTags bodyTags <- widgetToPageContent $ do
       contents
     mmsg <- getMessage
-    hamletToRepHtml [hamlet|
+    giveUrlRenderer [hamlet|
         $doctype 5
         <html>
           <head>
@@ -47,7 +52,7 @@ instance Yesod Master where
                <p.message>#{msg}
              ^{bodyTags}
         |]
-  maximumContentLength x _ = fromIntegral $ maxUploadSize x
+  maximumContentLength x _ = Just $ fromIntegral $ maxUploadSize x
 
 instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage
@@ -60,6 +65,7 @@ instance HasGitit Master where
   requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
   makePage = makeDefaultPage
   getPlugins = return [] -- [samplePlugin]
+  staticR = StaticR
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)
@@ -216,7 +222,7 @@ main = do
     exists <- doesDirectoryExist cachedir
     when exists $ removeDirectoryRecursive cachedir
 
-  let settings = defaultSettings{ settingsPort = cfg_port conf }
+  let settings = setPort (cfg_port conf) defaultSettings
   let gconfig = GititConfig{ mime_types = mimes
                            , default_format = format
                            , repository_path = cfg_repository_path conf
@@ -239,9 +245,9 @@ main = do
   runner =<< toWaiApp
       (Master (Gitit{ config = gconfig
                     , filestore = fs
-                    , getStatic = st
                     })
-              maxsize)
+              maxsize
+              st)
 
 initializeRepo :: GititConfig -> FileStore -> IO ()
 initializeRepo gconfig fs = do
