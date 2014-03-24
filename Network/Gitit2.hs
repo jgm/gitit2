@@ -107,7 +107,7 @@ makeDefaultPage layout content = do
     <div .container>
      <div .row>
        <div #sidebar .span2>
-         <div #$ logo>
+         <div #logo>
            <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
          $if pgSiteNav layout
            <div .sitenav>
