@@ -30,6 +30,7 @@ import Data.List (inits, find, sortBy, isPrefixOf, sort, nub)
 import Data.FileStore as FS
 import Data.Char (toLower)
 import System.FilePath
+import Data.List (intercalate)
 import Text.Pandoc
 import Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
 import Text.Pandoc.PDF (makePDF)
@@ -795,11 +796,11 @@ getDiffR fromRev toRev page = do
         $forall t <- rawDiff
            $case t
              $of Both xs _
-               <span .unchanged>#{unlines xs}</span>
+               <span .unchanged>#{intercalate "\n" xs}
              $of First xs
-               <span .deleted>#{unlines xs}</span>
+               <span .deleted>#{intercalate "\n" xs}
              $of Second xs
-               <span .added>#{unlines xs}</span>
+               <span .added>#{intercalate "\n" xs}
      |]
 
 getHistoryR :: HasGitit master
@@ -841,15 +842,15 @@ getHistoryR start page = do
           $(".difflink").droppable({
                accept: ".difflink",
                drop: function(ev, ui) {
+                  var diffurl = $(this).attr("diffurl");
                   var targetOrder = parseInt($(this).attr("order"));
                   var sourceOrder = parseInt($(ui.draggable).attr("order"));
-                  var diffurl = $(this).attr("diffurl");
                   if (targetOrder < sourceOrder) {
-                      var fromRev = $(this).attr("revision");
-                      var toRev   = $(ui.draggable).attr("revision");
-                  } else {
                       var toRev   = $(this).attr("revision");
                       var fromRev = $(ui.draggable).attr("revision");
+                  } else {
+                      var fromRev = $(this).attr("revision");
+                      var toRev   = $(ui.draggable).attr("revision");
                   };
                   location.href = diffurl.replace('FROM',fromRev).replace('TO',toRev);
                   }
