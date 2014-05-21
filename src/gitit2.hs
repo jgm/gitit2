@@ -45,6 +45,8 @@ instance Yesod Master where
         $doctype 5
         <html>
           <head>
+             <meta charset="UTF-8">
+             <meta name="viewport" content="width=device-width,initial-scale=1">
              <title>#{title}
              ^{headTags}
           <body>

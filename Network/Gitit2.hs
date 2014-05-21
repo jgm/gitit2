@@ -106,7 +106,7 @@ makeDefaultPage layout content = do
     [whamlet|
     <div .container>
      <div .row>
-       <div #sidebar .span2>
+       <div #sidebar .col-md-2>
          <div #logo>
            <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
          $if pgSiteNav layout
@@ -143,7 +143,7 @@ makeDefaultPage layout content = do
                      $forall (f,_) <- exportFormats
                        <option value=#{f}>#{f}
                    <input type="submit" id="export" name="export" value=_{MsgExport}>
-       <div #maincol .span8>
+       <div #maincol .col-md-8>
          <div #userbox>
          $maybe page <- pgName layout
            <ul .tabs>
