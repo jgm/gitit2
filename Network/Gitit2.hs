@@ -53,7 +53,7 @@ import Text.Blaze.Html hiding (contents)
 import Blaze.ByteString.Builder (toLazyByteString)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
-import Data.Maybe (mapMaybe, isJust)
+import Data.Maybe (mapMaybe, isJust, isNothing)
 import System.Random (randomRIO)
 import System.IO (Handle, withFile, IOMode(..))
 import System.IO.Error (isEOFError)
@@ -93,13 +93,9 @@ makeDefaultPage layout content = do
   let tabClass :: Tab -> Text
       tabClass t = if t == pgSelectedTab layout then "selected" else ""
   let showTab t = t `elem` pgTabs layout
-  printLayout <- lookupGetParam "print"
   exportFormats <- getExportFormats
   lift $ defaultLayout $ do
-    addStylesheet $ staticR $
-      case printLayout of
-           Just _  -> StaticRoute ["css","print.css"] []
-           Nothing -> StaticRoute ["css","custom.css"] []
+    addStylesheet $ staticR $ StaticRoute ["css","custom.css"] []
     addScript $ staticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
     addScript $ staticR $ StaticRoute ["js","bootstrap.min.js"] []
     atomLink (toMaster AtomSiteR) "Atom feed for the wiki"
@@ -136,7 +132,6 @@ makeDefaultPage layout content = do
                  <legend>This page</legend>
                  <ul>
                    <li><a href=@{toMaster $ RawR page}>_{MsgRawPageSource}</a>
-                   <li><a href="@{toMaster $ ViewR page}?print">_{MsgPrintableVersion}</a>
                    <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
                    <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
                  <form method="post" #exportbox action=@{toMaster $ ExportR page}>
