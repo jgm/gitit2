@@ -40,7 +40,7 @@ tr {page-break-inside: avoid;}
 
 #maincol { margin-left: 1em; margin-right: 1em; border: none; }
 #content { border: none; }
-#sidebar, #userbox, #footer {display:none;}
+#sidebar, #userpane, #footer {display:none;}
 #toc { display: none; }
 #categoryList { display: none; }
 h1 a:link, h2 a:link, h3 a:link, h4 a:link, h5 a:link, h6 a:link { text-decoration: none; }
