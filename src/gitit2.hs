@@ -4,6 +4,8 @@ import Network.Gitit2
 import Network.Socket hiding (Debug)
 import Yesod
 import Yesod.Static
+import Yesod.Auth
+import Yesod.Auth.BrowserId
 import Network.Wai.Handler.Warp
 import Data.FileStore
 import Data.Yaml
@@ -23,13 +25,21 @@ import Prelude hiding (catch)
 import Control.Exception (catch, SomeException)
 import qualified Data.Set as Set
 import Paths_gitit2 (getDataFileName)
+import qualified Network.HTTP.Conduit as HC
 -- TODO only for samplePlugin
 import Data.Generics
 
-data Master = Master { getGitit :: Gitit, maxUploadSize :: Int, getStatic :: Static }
+data Master = Master { getGitit    :: Gitit
+                     , maxUploadSize :: Int
+                     , getStatic   :: Static
+                     , httpManager :: HC.Manager
+                     }
 mkYesod "Master" [parseRoutes|
 /static StaticR Static getStatic
 /wiki SubsiteR Gitit getGitit
+/auth AuthR Auth getAuth
+/user UserR GET
+/messages MessagesR GET
 / RootR GET
 |]
 
@@ -39,8 +49,16 @@ getRootR = redirect $ SubsiteR HomeR
 instance Yesod Master where
   defaultLayout contents = do
     PageContent title headTags bodyTags <- widgetToPageContent $ do
+      addScript $ staticR $ StaticRoute ["js","jquery-1.7.2.min.js"] []
+      toWidget [julius|
+        $.get("@{UserR}", {}, function(userpane, status) {
+          $("#userpane").html(userpane);
+        });
+        $.get("@{MessagesR}", {}, function(messages, status) {
+          $("#messages").html(messages);
+        });
+        |]
       contents
-    mmsg <- getMessage
     giveUrlRenderer [hamlet|
         $doctype 5
         <html>
@@ -50,11 +68,31 @@ instance Yesod Master where
              <title>#{title}
              ^{headTags}
           <body>
-             $maybe msg  <- mmsg
-               <p.message>#{msg}
+             <div .container>
+               <div .row>
+                 <div #messages .col-md-7>
+                 <div #userpane .col-md-3 .text-right>
              ^{bodyTags}
         |]
+  -- TODO: insert javascript calls to /user and /messages
+
   maximumContentLength x _ = Just $ fromIntegral $ maxUploadSize x
+
+  -- needed for BrowserId - can we set it form config or request?
+  approot = ApprootStatic "http://localhost:3000"
+
+instance YesodAuth Master where
+  type AuthId Master = Text
+  getAuthId = return . Just . credsIdent
+
+  loginDest _ = RootR
+  logoutDest _ = RootR
+
+  authPlugins _ = [ authBrowserId def ]
+
+  maybeAuthId = lookupSession "_ID"
+
+  authHttpManager = httpManager
 
 instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage
@@ -63,11 +101,35 @@ instance RenderMessage Master GititMessage where
     renderMessage x = renderMessage (getGitit x)
 
 instance HasGitit Master where
-  maybeUser = return $ Just $ GititUser "Dummy" "dumb@dumber.org"
-  requireUser = return $ GititUser "Dummy" "dumb@dumber.org"
+  maybeUser = do
+    mbid <- lookupSession "_ID"
+    case mbid of
+         Nothing  -> return Nothing
+         Just id' -> return $ Just $ GititUser
+                        (T.unpack $ T.takeWhile (/='@') id')
+                        (T.unpack id')
+  requireUser = maybe (fail "login required") return =<< maybeUser
   makePage = makeDefaultPage
   getPlugins = return [] -- [samplePlugin]
   staticR = StaticR
+
+getUserR :: Handler Html
+getUserR = do
+  maid <- maybeAuthId
+  giveUrlRenderer [hamlet|
+    $maybe aid <- maid
+      <p><a href=@{AuthR LogoutR}>Logout #{aid}
+    $nothing
+      <a href=@{AuthR LoginR}>Login
+    |]
+
+getMessagesR :: Handler Html
+getMessagesR = do
+  mmsg <- getMessage
+  giveUrlRenderer [hamlet|
+    $maybe msg  <- mmsg
+      <p.message>#{msg}
+    |]
 
 -- | Ready collection of common mime types. (Copied from
 -- Happstack.Server.HTTP.FileServe.)
@@ -244,12 +306,14 @@ main = do
   unless repoexists $ initializeRepo gconfig fs
 
   let runner = runSettingsSocket settings sock
+  man <- HC.newManager HC.conduitManagerSettings
   runner =<< toWaiApp
       (Master (Gitit{ config = gconfig
                     , filestore = fs
                     })
               maxsize
-              st)
+              st
+              man)
 
 initializeRepo :: GititConfig -> FileStore -> IO ()
 initializeRepo gconfig fs = do

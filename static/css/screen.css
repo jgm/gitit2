@@ -1,7 +1,7 @@
 @import "bootstrap.min.css";
 
 html { background: #f9f9f9; color: black; }
-body { margin: 10px; }
+body { padding: 10px; }
 
 label { display: block; }
 textarea, input[type='text'], input[type='password'], select { border: 1px solid #ccc; background: #fff; }
