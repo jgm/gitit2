@@ -69,8 +69,6 @@ h6 > a:link, h6 > a:active, h6 > a:hover, h6 > a:focus, h6 > a:visited {
 #content { border: 1px solid #ccc; background-color: #fff; padding: 1em; font-size: 108%; }
 #content p, #content pre, #content li { line-height: 140%; }
 
-div#userpane  { height: 50px; }
-
 #logo { min-height: 50px; }
 
 #sidebar fieldset { background-color: white; margin-bottom: 1em; padding: 0; font-size: 93%; }
@@ -162,3 +160,5 @@ box-shadow: #555 0 0 10px;
 sup + sup { margin-left: 2px; }
 
 p.pagination { text-align: center; font-size: 200%; font-weight: bold; }
+div#userpane { height: 40px; text-align: right; }
+ul.dropdown-menu a, a.dropdown-toggle { text-decoration: none; }

@@ -190,7 +190,7 @@ mkYesodSubData "Gitit" [parseRoutesNoCheck|
 /_activity/#Int ActivityR GET
 /_atom AtomSiteR GET
 /_atom/*Page AtomPageR GET
-/_export/*Page ExportR POST
+/_export/#Text/*Page ExportR GET
 /_expire/*Page ExpireR POST
 /_expire ExpireHomeR POST
 /_categories CategoriesR GET

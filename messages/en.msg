@@ -1,11 +1,11 @@
 PageSource:  Page Source
 ChangeDescription:  Description of Change
 NeedChangeDescription:  Description of Change cannot be empty.
-View: view
-Page: page
-Edit: edit
-History: history
-Discuss: discuss
+View: View latest
+Page: Page
+Edit: Edit
+History: History
+Discuss: Discuss
 FrontPage: Front page
 Directory: Directory
 Categories: Categories

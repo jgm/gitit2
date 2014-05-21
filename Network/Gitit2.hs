@@ -106,58 +106,70 @@ makeDefaultPage layout content = do
        <div #sidebar .col-md-2>
          <div #logo>
            <a href=@{toMaster HomeR}><img src=@{logoRoute} alt=logo></a>
-         $if pgSiteNav layout
-           <div .sitenav>
-             <fieldset>
-               <legend>Site
-               <ul>
-                 <li><a href=@{toMaster HomeR}>_{MsgFrontPage}</a>
-                 <li><a href=@{toMaster IndexBaseR}>_{MsgDirectory}</a>
-                 <li><a href=@{toMaster CategoriesR}>_{MsgCategories}</a>
-                 <li><a href=@{toMaster RandomR}>_{MsgRandomPage}</a>
-                 <li><a href=@{toMaster $ ActivityR 1}>_{MsgRecentActivity}</a>
-                 <li><a href=@{toMaster UploadR}>_{MsgUploadFile}</a></li>
-                 <li><a href=@{toMaster AtomSiteR} type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
-                 <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
-               <form method="post" action=@{searchRoute} id="searchform">
-                <input type="text" name="patterns" id="patterns">
-                <input type="submit" name="search" id="search" value="_{MsgSearch}">
-               <form method="post" action=@{goRoute} id="goform">
-                 <input type="text" name="gotopage" id="gotopage">
-                 <input type="submit" name="go" id="go" value="_{MsgGo}">
-         $if pgPageTools layout
-           <div .pagetools>
-             $maybe page <- pgName layout
-               <fieldset>
-                 <legend>This page</legend>
-                 <ul>
-                   <li><a href=@{toMaster $ RawR page}>_{MsgRawPageSource}</a>
-                   <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
-                   <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a> <img alt="feed icon" src=@{feedRoute}>
-                 <form method="post" #exportbox action=@{toMaster $ ExportR page}>
-                   <select name="format">
-                     $forall (f,_) <- exportFormats
-                       <option value=#{f}>#{f}
-                   <input type="submit" id="export" name="export" value=_{MsgExport}>
        <div #maincol .col-md-8>
-         <div #userbox>
-         $maybe page <- pgName layout
-           <ul .tabs>
-             $if showTab ViewTab
-               $if isDiscussPage page
-                 <li class=#{tabClass ViewTab}>
-                   <a href=@{toMaster $ ViewR $ discussedPage page}>_{MsgPage}</a>
-               $else
-                 <li class=#{tabClass ViewTab}>
-                   <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
-             $if showTab EditTab
-               <li class=#{tabClass EditTab}>
-                 <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
-             $if showTab HistoryTab
-               <li class=#{tabClass HistoryTab}>
-                 <a href=@{toMaster $ HistoryR 1 page}>_{MsgHistory}</a>
-             $if showTab DiscussTab
-               <li class=#{tabClass DiscussTab}><a href=@{toMaster $ ViewR $ discussPageFor page}>_{MsgDiscuss}</a>
+         <div #userpane>
+         <div .navbar .navbar-default role="navigation">
+             <div .container-fluid>
+               <div .navbar-header>
+                  <button type="button" .navbar-toggle data-toggle="collapse" data-target="#navbar">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                  <a class="navbar-brand" href="#">Gitit</a>
+               <ul .nav .navbar-nav #navbar>
+                 $if pgSiteNav layout
+                   <li .dropdown .navbar-left>
+                       <a href="#" .dropdown-toggle data-toggle="dropdown">
+                         Site
+                         <b .caret>
+                       <ul .dropdown-menu>
+                         <li><a href=@{toMaster HomeR}>_{MsgFrontPage}</a>
+                         <li><a href=@{toMaster IndexBaseR}>_{MsgDirectory}</a>
+                         <li><a href=@{toMaster CategoriesR}>_{MsgCategories}</a>
+                         <li><a href=@{toMaster RandomR}>_{MsgRandomPage}</a>
+                         <li><a href=@{toMaster $ ActivityR 1}>_{MsgRecentActivity}</a>
+                         <li><a href=@{toMaster UploadR}>_{MsgUploadFile}</a></li>
+                         <li><a href=@{toMaster AtomSiteR} type="application/atom+xml" rel="alternate" title="ATOM Feed">_{MsgAtomFeed}</a>
+                         <li><a href=@{toMaster HelpR}>_{MsgHelp}</a></li>
+
+                 $maybe page <- pgName layout
+                   <li .dropdown>
+                     <a href="#" .dropdown-toggle data-toggle="dropdown">
+                       This page
+                       <b .caret>
+                     <ul .dropdown-menu role="menu">
+                       $if showTab EditTab
+                         <li class=#{tabClass EditTab}>
+                           <a href=@{toMaster $ EditR page}>_{MsgEdit}</a>
+                       <li class=#{tabClass ViewTab}>
+                         <a href=@{toMaster $ ViewR page}>_{MsgView}</a>
+                       $if showTab HistoryTab
+                         <li class=#{tabClass HistoryTab}>
+                           <a href=@{toMaster $ HistoryR 1 page}>_{MsgHistory}</a>
+                       $if showTab DiscussTab
+                         <li class=#{tabClass DiscussTab}><a href=@{toMaster $ ViewR $ discussPageFor page}>_{MsgDiscuss}</a>
+                                 <li><a href=@{toMaster $ RawR page}>_{MsgRawPageSource}</a>
+                       <li><a href=@{toMaster $ DeleteR page}>_{MsgDeleteThisPage}</a>
+                       <li><a href=@{toMaster $ AtomPageR page} type="application/atom+xml" rel="alternate" title="This page's ATOM Feed">_{MsgAtomFeed}</a>
+
+                   <li .dropdown>
+                     <a href="#" .dropdown-toggle data-toggle="dropdown">
+                       _{MsgExport}
+                       <b .caret>
+                       <ul .dropdown-menu role="menu">
+                         $forall (f,_) <- exportFormats
+                           <li>
+                             <a href=@{toMaster $ ExportR f page}>#{f}
+                 <form .navbar-form .navbar-right role="search" method="post" action=@{searchRoute} id="searchform">
+                   <div .form-group>
+                     <label .sr-only for="patterns">_{MsgSearch}
+                     <input type="text" .form-control placeholder="_{MsgSearch}" name="patterns" id="patterns">
+                 <form .navbar-form .navbar-right role="go" method="post" action=@{goRoute} id="searchform">
+                   <div .form-group>
+                     <label .sr-only for="patterns">_{MsgGo}
+                     <input type="text" .form-control placeholder="_{MsgGo}" name="gotopage" id="gotopage">
+         <div #messages>
          <div #content>
            ^{content}
   |]
@@ -983,11 +995,12 @@ feed mbpage = do
       , feedEntries = entries
     }
 
-postExportR :: HasGitit master
-            => Page -> GH master (ContentType, Content)
-postExportR page = do
+getExportR :: HasGitit master
+            => Text
+            -> Page
+            -> GH master (ContentType, Content)
+getExportR format page = do
   exportFormats <- getExportFormats
-  format <- lift $ runInputPost (ireq textField "format")
   case lookup format exportFormats of
          Nothing -> fail "Unrecognized format"
          Just (extension, f) -> do

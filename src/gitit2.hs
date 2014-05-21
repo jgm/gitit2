@@ -68,10 +68,6 @@ instance Yesod Master where
              <title>#{title}
              ^{headTags}
           <body>
-             <div .container>
-               <div .row>
-                 <div #messages .col-md-7>
-                 <div #userpane .col-md-3 .text-right>
              ^{bodyTags}
         |]
   -- TODO: insert javascript calls to /user and /messages
