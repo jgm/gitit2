@@ -1,7 +1,6 @@
 @import "bootstrap.min.css";
 
-html { background: #f9f9f9; color: black; }
-body { padding: 10px; }
+body { color: black; background-color: #f9f9f9; padding: 10px; }
 
 label { display: block; }
 textarea, input[type='text'], input[type='password'], select { border: 1px solid #ccc; background: #fff; }
