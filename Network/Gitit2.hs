@@ -416,10 +416,12 @@ view mbrev page = do
                          $maybe rev <- mbrev
                            <h2 .revision>#{rev}
                          ^{contw}
-                         <div#categories>
-                           <ul>
-                             $forall category <- categories
-                               <li><a href=@{toMaster $ CategoryR category}>#{category}
+                         $if null categories
+                         $else
+                           <div#categories>
+                             <ul>
+                               $forall category <- categories
+                                 <li><a href=@{toMaster $ CategoryR category}>#{category}
                        |]
 
 getIndexBaseR :: HasGitit master => GH master Html
