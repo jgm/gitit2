@@ -825,7 +825,7 @@ getHistoryR start page = do
   let offset = start - 1
   hist <- liftIO $ drop offset <$>
            history fs [path] (TimeRange Nothing Nothing) (Just $ start + items)
-  histw <- mapM revisionDetails hist
+  histw <- mapM (revisionDetails False) hist
   let hist' = zip3 [(1 :: Int)..] hist histw
   toMaster <- getRouteToParent
   let pageForwardLink = if length hist > items
@@ -875,9 +875,10 @@ getHistoryR start page = do
      |]
 
 revisionDetails :: HasGitit master
-                => Revision
+                => Bool     -- True = link to page history
+                -> Revision
                 -> GH master (WidgetT master IO ())
-revisionDetails rev = do
+revisionDetails linkToPageHistory rev = do
   let toChange :: Change -> GH master (Text, Page)
       toChange (Modified f) = ("modified",) <$> pageForPath f
       toChange (Deleted  f) = ("deleted",)  <$> pageForPath f
@@ -885,12 +886,16 @@ revisionDetails rev = do
   toMaster <- getRouteToParent
   changes <- mapM toChange $ revChanges rev
   return $ [whamlet|
-    <span .date>#{show $ revDateTime rev} 
-    (<span .author>#{authorName $ revAuthor rev}</span>): 
-    <span .subject>#{revDescription rev} 
+    <span .date>#{show $ revDateTime rev}
+    (<span .author>#{authorName $ revAuthor rev}</span>):
+    <span .subject>#{revDescription rev}
     $forall (cls,pg) <- changes
-      <a href=@{toMaster $ RevisionR (revId rev) pg}>
-        <span .#{cls}>#{pg}</span> 
+      $if linkToPageHistory
+        <a href=@{toMaster $ HistoryR 1 pg}>
+          <span .#{cls}>#{pg}
+      $else
+        <a href=@{toMaster $ RevisionR (revId rev) pg}>
+          <span .#{cls}>#{pg}
   |]
 
 pagination :: HasGitit master
@@ -915,7 +920,7 @@ getActivityR start = do
   fs <- filestore <$> getYesod
   hist <- liftIO $ drop offset <$>
            history fs [] (TimeRange Nothing Nothing) (Just $ start + items)
-  hist' <- mapM revisionDetails hist
+  hist' <- mapM (revisionDetails True) hist
   toMaster <- getRouteToParent
   let pageForwardLink = if length hist > items
                            then Just $ toMaster
