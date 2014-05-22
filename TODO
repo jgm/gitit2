@@ -1,14 +1,19 @@
 Features to implement:
 
-_ move userpane stuff to Gitit code.
+_ move javascript to set userpane and messages to Network.Gitit?
 
-_ tabs - use bootstrap tabs instead of the old way
+_ revamp caching.
+  new plan (see stashed):
+  cache should base64-encode the rawPathInfo from waiRequest
+  so it's on a per-request basis
+  in a separate directory we need to track which cached pages
+  are derived from which filestore paths, so we can expire them
+  when the filestore paths change.  use symlinks?
 
 _ preview in edit?
-  when you edit, all tabs should disappear accept edit and preview
-  hitting the preview tab should switch to the preview pane and
-  populate it with the result of rendering the current contenst of
-  the edit pane.
+  when you edit, you should be able to switch back and forth to a preview
+  tab.  when you activate the preview tab it should render the current
+  content of the edit pane.
 
 _ plugins/interface [started]
   _ plugin loading
