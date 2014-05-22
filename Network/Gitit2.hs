@@ -378,7 +378,7 @@ view mbrev page = do
        Just contents -> do
          wikipage <- contentsToWikiPage page contents
          htmlContents <- pageToHtml wikipage
-         let mbcache = if wpCacheable wikipage
+         let mbcache = if wpCacheable wikipage && isNothing mbrev
                           then caching path
                           else id
          mbcache $ layout [ViewTab,EditTab,HistoryTab,DiscussTab]
