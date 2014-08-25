@@ -1,7 +1,6 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, MultiParamTypeClasses, TypeFamilies,
     OverloadedStrings #-}
 import Network.Gitit2
-import Network.Socket hiding (Debug)
 import Yesod
 import Yesod.Static
 import Yesod.Auth
@@ -151,7 +150,6 @@ mimeTypes = M.fromList
         ,("hs","text/plain; charset=UTF-8")]
 
 data Conf = Conf { cfg_port             :: Int
-                 , cfg_listen_address   :: String
                  , cfg_repository_path  :: FilePath
                  , cfg_repository_type  :: Text
                  , cfg_page_extension   :: FilePath
@@ -188,7 +186,6 @@ readMimeTypesFile f = catch
 parseConfig :: Object -> Parser Conf
 parseConfig o = Conf
   <$> o .:? "port" .!= 3000
-  <*> o .:? "listen_address" .!= "0.0.0.0"
   <*> o .:? "repository_path" .!= "wikidata"
   <*> o .:? "repository_type" .!= "git"
   <*> o .:? "page_extension" .!= ".page"
@@ -259,13 +256,6 @@ main = do
                 Nothing -> return mimeTypes
                 Just f  -> readMimeTypesFile f
 
-  -- open the requested interface
-  sock <- socket AF_INET Stream defaultProtocol
-  setSocketOption sock ReuseAddr 1
-  device <- inet_addr $ cfg_listen_address conf
-  bindSocket sock $ SockAddrInet (toEnum (cfg_port conf)) device
-  listen sock 10
-
   format <- case readPageFormat (cfg_default_format conf) of
                   Just f  -> return f
                   Nothing -> err 11 $ "Unknown default format: " ++
@@ -281,7 +271,6 @@ main = do
     exists <- doesDirectoryExist cachedir
     when exists $ removeDirectoryRecursive cachedir
 
-  let settings = setPort (cfg_port conf) defaultSettings
   let gconfig = GititConfig{ mime_types = mimes
                            , default_format = format
                            , repository_path = cfg_repository_path conf
@@ -300,9 +289,8 @@ main = do
 
   unless repoexists $ initializeRepo gconfig fs
 
-  let runner = runSettingsSocket settings sock
   man <- HC.newManager HC.conduitManagerSettings
-  runner =<< toWaiApp
+  run (cfg_port conf)  =<< toWaiApp
       (Master Gitit{ config = gconfig
                     , filestore = fs
                     }
