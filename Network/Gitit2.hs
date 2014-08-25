@@ -21,16 +21,14 @@ module Network.Gitit2 ( GititConfig (..)
                       ) where
 
 import Prelude hiding (catch)
-import Control.Exception (catch)
 import qualified Data.Map as M
 import Yesod hiding (MsgDelete)
 import Yesod.Static
 import Data.Ord (comparing)
-import Data.List (inits, find, sortBy, isPrefixOf, sort, nub)
 import Data.FileStore as FS
 import Data.Char (toLower)
 import System.FilePath
-import Data.List (intercalate)
+import Data.List (inits, find, sortBy, isPrefixOf, sort, nub, intercalate)
 import Text.Pandoc
 import Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
 import Text.Pandoc.PDF (makePDF)
@@ -53,11 +51,11 @@ import Text.Blaze.Html hiding (contents)
 import Blaze.ByteString.Builder (toLazyByteString)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
-import Data.Maybe (mapMaybe, isJust, isNothing)
+import Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
 import System.Random (randomRIO)
 import System.IO (Handle, withFile, IOMode(..))
 import System.IO.Error (isEOFError)
-import Control.Exception (throw, handle, try)
+import Control.Exception (catch, throw, handle, try)
 import Text.Highlighting.Kate
 import Data.Time (getCurrentTime, addUTCTime)
 import Yesod.AtomFeed
@@ -180,12 +178,12 @@ makeDefaultPage layout content = do
 convertWikiLinks :: Text -> Inline -> GH master Inline
 convertWikiLinks prefix (Link ref ("", "")) = do
   toMaster <- getRouteToParent
-  toUrl <- lift $ getUrlRender
+  toUrl <- lift getUrlRender
   let route = ViewR $ textToPage $ T.append prefix $ T.pack $ stringify ref
   return $ Link ref (T.unpack $ toUrl $ toMaster route, "")
 convertWikiLinks prefix (Image ref ("", "")) = do
   toMaster <- getRouteToParent
-  toUrl <- lift $ getUrlRender
+  toUrl <- lift getUrlRender
   let route = ViewR $ textToPage $ T.append prefix $ T.pack $ stringify ref
   return $ Image ref (T.unpack $ toUrl $ toMaster route, "")
 convertWikiLinks _ x = return x
@@ -326,7 +324,7 @@ getDeleteR page = do
   toMaster <- getRouteToParent
   makePage pageLayout{ pgName = Just page
                      , pgTabs = []
-                     } $ do
+                     }
     [whamlet|
       <h1>#{page}</h1>
       <div #deleteform>
@@ -355,7 +353,7 @@ getViewR page = do
   view Nothing page
 
 postPreviewR :: HasGitit master => GH master Html
-postPreviewR = do
+postPreviewR =
   undefined -- TODO: get raw contents and settings from post params
   -- return HTML for rendered page contents
   -- a javascript gizmo will display this in a modal or something
@@ -364,7 +362,7 @@ postPreviewR = do
 getMimeType :: FilePath -> GH master ContentType
 getMimeType fp = do
   mimeTypes <- mime_types <$> getConfig
-  return $ maybe "application/octet-stream" id
+  return $ fromMaybe "application/octet-stream"
          $ M.lookup (drop 1 $ takeExtension fp) mimeTypes
 
 getRevisionR :: HasGitit master => RevisionId -> Page -> GH master Html
@@ -485,7 +483,7 @@ getRawContents path rev = do
          $ Just <$> retrieve fs path rev
 
 pageToHtml :: HasGitit master => WikiPage -> GH master Html
-pageToHtml wikiPage = do
+pageToHtml wikiPage =
   return $ writeHtml def{
                writerWrapText = False
              , writerHtml5 = True
@@ -512,12 +510,12 @@ contentsToWikiPage page contents = do
   let metadata :: M.Map Text Value
       metadata = if B.null h
                     then M.empty
-                    else maybe M.empty id
+                    else fromMaybe M.empty
                          $ decode $! BS.concat $ B.toChunks h
   let formatStr = case M.lookup "format" metadata of
                          Just (String s) -> s
                          _               -> ""
-  let format = maybe (default_format conf) id $ readPageFormat formatStr
+  let format = fromMaybe (default_format conf) $ readPageFormat formatStr
   let readerOpts literate = def{ readerSmart = True
                                , readerExtensions =
                                    if literate
@@ -583,8 +581,8 @@ postGoR = do
   let exactMatch f = gotopage == f
   let insensitiveMatch f = gotopage' == T.toLower f
   let prefixMatch f = gotopage' `T.isPrefixOf` T.toLower f
-  case (findPage exactMatch `mplus` findPage insensitiveMatch `mplus`
-        findPage prefixMatch) of
+  case findPage exactMatch `mplus` findPage insensitiveMatch `mplus`
+        findPage prefixMatch of
        Just m  -> redirect $ ViewR $ textToPage m
        Nothing -> searchResults $ T.words gotopage
 
@@ -603,8 +601,8 @@ searchResults patterns = do
   let contentMatches = map matchResourceName matchLines
   allPages <- allPageFiles
   let slashToSpace = map (\c -> if c == '/' then ' ' else c)
-  let inPageName pageName' x = x `elem`
-          (words $ slashToSpace $ dropExtension pageName')
+  let inPageName pageName' x = x `elem` words
+           (slashToSpace $ dropExtension pageName')
   let matchesPatterns pageName' = not (null patterns) &&
        all (inPageName (map toLower pageName'))
            (map (T.unpack . T.toLower) patterns)
@@ -618,7 +616,7 @@ searchResults patterns = do
   let relevance (f, ms) = length ms + if f `elem` pageNameMatches
                                          then 100
                                          else 0
-  let matches' = reverse $ sortBy (comparing relevance) matches
+  let matches' = sortBy (flip (comparing relevance)) matches
   let matches'' = map (\(f,c) -> (textToPage $ T.pack $ dropExtension f, c)) matches'
   toMaster <- getRouteToParent
   makePage pageLayout{ pgName = Nothing
@@ -685,10 +683,10 @@ edit :: HasGitit master
      -> GH master Html
 edit revert txt mbrevid page = do
   requireUser
-  let contents = Textarea $ T.pack $ txt
+  let contents = Textarea $ T.pack txt
   mr <- getMessageRender
   let comment = if revert
-                   then mr $ MsgReverted $ maybe "" id mbrevid
+                   then mr $ MsgReverted $ fromMaybe "" mbrevid
                    else ""
   (form, enctype) <- lift $ generateFormPost $ editForm
                      $ Just Edit{ editContents = contents
@@ -710,10 +708,10 @@ showEditForm :: HasGitit master
              -> Enctype
              -> WidgetT master IO ()
              -> GH master Html
-showEditForm page route enctype form = do
+showEditForm page route enctype form =
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [EditTab]
-                     , pgSelectedTab = EditTab } $ do
+                     , pgSelectedTab = EditTab }
     [whamlet|
       <h1>#{page}</h1>
       <div #editform>
@@ -724,11 +722,11 @@ showEditForm page route enctype form = do
 
 postUpdateR :: HasGitit master
           => RevisionId -> Page -> GH master Html
-postUpdateR revid page = update' (Just revid) page
+postUpdateR revid = update' (Just revid)
 
 postCreateR :: HasGitit master
             => Page -> GH master Html
-postCreateR page = update' Nothing page
+postCreateR = update' Nothing
 
 update' :: HasGitit master
        => Maybe RevisionId -> Page -> GH master Html
@@ -932,7 +930,7 @@ getActivityR start = do
                            else Nothing
   makePage pageLayout{ pgName = Nothing
                      , pgTabs = []
-                     , pgSelectedTab = HistoryTab } $ do
+                     , pgSelectedTab = HistoryTab }
    [whamlet|
      <h1 .title>Recent activity
      <ul>
@@ -1062,7 +1060,7 @@ getExportFormats = do
                    $ pureWriter writeOpenDocument))
     , ("Org-mode", (".org", basicExport "org" typePlain $ pureWriter writeOrg)) ] ++
     [ ("PDF", (".pdf", basicExport "latex" "application/pdf" $ \opts d ->
-                   inDirectory repopath $ makePDF (maybe "pdflatex" id $
+                   inDirectory repopath $ makePDF (fromMaybe "pdflatex" $
                      latex_engine conf) writeLaTeX opts d >>= \res ->
                        case res of
                          Left e    -> error $ "Could not produce PDF: " ++ toString e
@@ -1084,7 +1082,7 @@ getExportFormats = do
 basicExport :: ToContent a
             => String -> ContentType -> (WriterOptions -> Pandoc -> IO a)
             -> WikiPage -> GH master (ContentType, Content)
-basicExport templ contentType writer = \wikiPage -> do
+basicExport templ contentType writer wikiPage = do
   conf <- getConfig
   template' <- liftIO $ getDefaultTemplate (pandoc_user_data conf) templ
   template <- case template' of
@@ -1229,11 +1227,10 @@ postExpireHomeR = do
 postExpireR :: HasGitit master => Page -> GH master Html
 postExpireR page = do
   useCache <- use_cache <$> getConfig
-  if useCache
-     then do
+  when useCache $
+     do
        pathForPage page >>= expireCache
        pathForFile page >>= expireCache
-     else return ()
   redirect $ ViewR page
 
 caching :: ToTypedContent a
@@ -1250,27 +1247,25 @@ caching path handler = do
 cacheContent :: FilePath -> TypedContent -> GH master ()
 cacheContent path (TypedContent ct content) = do
   conf <- getConfig
-  if use_cache conf
-     then do
+  when (use_cache conf) $
        case content of
             ContentBuilder builder _ -> liftIO $ do
               let fullpath = cache_dir conf </> path </> urlEncode (BSU.toString ct)
               createDirectoryIfMissing True $ takeDirectory fullpath
               B.writeFile fullpath $ toLazyByteString builder
-            _ -> liftIO $ do
+            _ -> liftIO $
               -- TODO replace w logging
               putStrLn $ "Can't cache " ++ path
-     else return ()
 
 tryCache :: FilePath -> GH master ()
 tryCache path = do
   conf <- getConfig
-  if use_cache conf
-     then do
+  when (use_cache conf) $
+     do
        let fullpath = cache_dir conf </> path
        exists <- liftIO $ doesDirectoryExist fullpath
-       if exists
-          then do
+       when exists $
+          do
             files <- liftIO $ getDirectoryContents fullpath >>=
                                filterM (doesFileExist . (fullpath </>))
             case files of
@@ -1278,8 +1273,6 @@ tryCache path = do
                     let ct = BSU.fromString $ urlDecode x
                     sendFile ct $ fullpath </> x
                  _     -> return ()
-          else return ()
-     else return ()
 
 expireCache :: FilePath -> GH master ()
 expireCache path = do
@@ -1331,7 +1324,7 @@ getCategoriesR = do
   caching "_categories" $
     makePage pageLayout{ pgName = Nothing
                        , pgTabs = []
-                       , pgSelectedTab = EditTab } $ do
+                       , pgSelectedTab = EditTab }
     [whamlet|
       <h1>_{MsgCategories}</h1>
       <ul>
@@ -1352,7 +1345,7 @@ getCategoryR category = do
   caching cachepage $
     makePage pageLayout{ pgName = Nothing
                        , pgTabs = []
-                       , pgSelectedTab = EditTab } $ do
+                       , pgSelectedTab = EditTab }
     [whamlet|
       <h1>_{MsgCategory}: #{category}</h1>
       <ul.index>
@@ -1365,9 +1358,9 @@ getCategoryR category = do
 readCategories :: FilePath -> IO [Text]
 readCategories f = do
   hdr <- getHeader f
-  if BS.null hdr
-     then return []
-     else return $ extractCategories $ maybe M.empty id $ decode hdr
+  return $ if BS.null hdr
+     then []
+     else extractCategories $ fromMaybe M.empty $ decode hdr
 
 extractCategories :: M.Map Text Value -> [Text]
 extractCategories metadata =

@@ -21,7 +21,6 @@ import System.IO
 import System.Exit
 import Data.Text (Text)
 import qualified Data.Text as T
-import Prelude hiding (catch)
 import Control.Exception (catch, SomeException)
 import qualified Data.Set as Set
 import Paths_gitit2 (getDataFileName)
@@ -59,7 +58,7 @@ instance Yesod Master where
         });
         |]
       contents
-    giveUrlRenderer [hamlet|
+    withUrlRenderer [hamlet|
         $doctype 5
         <html>
           <head>
@@ -112,7 +111,7 @@ instance HasGitit Master where
 getUserR :: Handler Html
 getUserR = do
   maid <- maybeAuthId
-  giveUrlRenderer [hamlet|
+  withUrlRenderer [hamlet|
     $maybe aid <- maid
       <p><a href=@{AuthR LogoutR}>Logout #{aid}
     $nothing
@@ -122,7 +121,7 @@ getUserR = do
 getMessagesR :: Handler Html
 getMessagesR = do
   mmsg <- getMessage
-  giveUrlRenderer [hamlet|
+  withUrlRenderer [hamlet|
     $maybe msg  <- mmsg
       <p.message>#{msg}
     |]
@@ -177,7 +176,7 @@ data Conf = Conf { cfg_port             :: Int
 -- extensions, separated by spaces. Example: text/plain txt text
 readMimeTypesFile :: FilePath -> IO (M.Map String ContentType)
 readMimeTypesFile f = catch
-  ((foldr go M.empty . map words . lines) `fmap` readFile f)
+  ((foldr (go . words) M.empty . lines) `fmap` readFile f)
   handleMimeTypesFileNotFound
      where go []     m = m  -- skip blank lines
            go (x:xs) m = foldr (\ext -> M.insert ext $ B.pack x) m xs
@@ -227,7 +226,7 @@ err code msg = do
   return undefined
 
 warn :: String -> IO ()
-warn msg = hPutStrLn stderr msg
+warn = hPutStrLn stderr
 
 
 -- TODO test
@@ -304,9 +303,9 @@ main = do
   let runner = runSettingsSocket settings sock
   man <- HC.newManager HC.conduitManagerSettings
   runner =<< toWaiApp
-      (Master (Gitit{ config = gconfig
+      (Master Gitit{ config = gconfig
                     , filestore = fs
-                    })
+                    }
               maxsize
               st
               man)
