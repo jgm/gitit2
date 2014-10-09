@@ -1029,30 +1029,30 @@ getExportR format page = do
 pureWriter :: (WriterOptions -> Pandoc -> String) -> WriterOptions -> Pandoc -> IO String
 pureWriter w opts d = return $ w opts d
 
-toSelfContained :: FilePath -> Maybe FilePath -> String -> IO String
-toSelfContained repopath userdata cont =
-  inDirectory repopath $ makeSelfContained userdata cont
+toSelfContained :: FilePath -> WriterOptions -> String -> IO String
+toSelfContained repopath w cont =
+  inDirectory repopath $ makeSelfContained w cont
 
 getExportFormats :: GH master [(Text, (Text, WikiPage -> GH master (ContentType,Content)))]
 getExportFormats = do
   conf <- getConfig
   let repopath = repository_path conf
   let userdata = pandoc_user_data conf
-  let selfcontained = toSelfContained repopath userdata
+  let selfcontained = toSelfContained repopath
   return $
     [ ("Asciidoc", (".txt", basicExport "asciidoc" typePlain $ pureWriter writeAsciiDoc))
     , ("Beamer", (".tex", basicExport "beamer" "application/x-latex" $ pureWriter writeLaTeX))
     , ("ConTeXt", (".tex", basicExport "context" "application/x-context" $ pureWriter writeConTeXt))
     , ("DocBook", (".xml", basicExport "docbook" "application/docbook+xml" $ pureWriter writeDocbook))
-    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts -> selfcontained .
+    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts -> selfcontained opts .
                 writeHtmlString opts{ writerSlideVariant = DZSlides
                               , writerHtml5 = True }))
     , ("EPUB", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts ->
                  inDirectory repopath . writeEPUB opts))
     , ("Groff man", (".1", basicExport "man" typePlain $ pureWriter writeMan))
-    , ("HTML", (".html", basicExport "html" typeHtml $ \opts -> selfcontained . writeHtmlString opts))
+    , ("HTML", (".html", basicExport "html" typeHtml $ \opts -> selfcontained opts . writeHtmlString opts))
     , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
-                   selfcontained . writeHtmlString opts{ writerHtml5 = True }))
+                   selfcontained opts . writeHtmlString opts{ writerHtml5 = True }))
     , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" $ pureWriter writeLaTeX))
     , ("Markdown", (".txt", basicExport "markdown" typePlain $ pureWriter writeMarkdown))
     , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain $ pureWriter writeMediaWiki))
@@ -1072,9 +1072,9 @@ getExportFormats = do
     , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTFWithEmbeddedImages))
     , ("Textile", (".txt", basicExport "textile" typePlain $ pureWriter writeTextile))
     , ("S5", (".html", basicExport "s5" typeHtml $ \opts ->
-                selfcontained . writeHtmlString opts{ writerSlideVariant = S5Slides }))
+                selfcontained opts . writeHtmlString opts{ writerSlideVariant = S5Slides }))
     , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
-                selfcontained . writeHtmlString opts{ writerSlideVariant = SlidySlides }))
+                selfcontained opts . writeHtmlString opts{ writerSlideVariant = SlidySlides }))
     , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" $ pureWriter writeTexinfo))
     , ("Word docx", (".docx", basicExport "docx"
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
