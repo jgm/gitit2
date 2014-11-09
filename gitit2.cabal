@@ -121,6 +121,7 @@ executable gitit2
                  , pandoc-types                  >= 1.12       && < 1.13
                  , syb                           >= 0.3        && < 0.5
                  , gitit2
+                 , utf8-string                   >=0.3.8
     ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
     if flag(executable)
        buildable:  True
