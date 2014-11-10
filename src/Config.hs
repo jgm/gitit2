@@ -12,6 +12,10 @@ module Config (
               , cfg_repository_type
               , cfg_static_dir
               , cfg_max_upload_size
+              , foundationSettingsFromConf
+              , FoundationSettings
+              , appRoot
+              , staticRoot
 )
 where
 import Data.Text (Text)
@@ -23,11 +27,13 @@ import Data.Yaml
 import Control.Exception (catch, SomeException)
 import Yesod
 import Network.Gitit2
+import Data.Monoid (mappend)
 
 import Error
 
 data Conf = Conf { cfg_port             :: Int
                  , cfg_host             :: Text
+                 , cfg_use_tls          :: Bool
                  , cfg_repository_path  :: FilePath
                  , cfg_repository_type  :: Text
                  , cfg_page_extension   :: FilePath
@@ -46,6 +52,21 @@ data Conf = Conf { cfg_port             :: Int
                  , cfg_latex_engine     :: Maybe FilePath
                  }
 
+data FoundationSettings  = FoundationSettings {
+      appRoot:: Text
+    , staticRoot:: Text
+} deriving (Show)
+
+foundationSettingsFromConf :: Conf -> FoundationSettings
+foundationSettingsFromConf conf =
+    FoundationSettings (httpOrHttps `mappend` hostAndPort)
+                       -- maybe set the static approot from settings file?
+                       (T.pack $ '/' : cfg_static_dir conf)
+    where httpOrHttps = if cfg_use_tls conf then "https://" else "http://"
+          hostAndPort = cfg_host conf `mappend`
+                        ":" `mappend`
+                        T.pack (show (cfg_port conf))
+
 parseElem :: FromJSON a => [Object] -> Text -> Parser (Maybe a)
 parseElem os text = foldr f (return Nothing) os
     where
@@ -59,6 +80,7 @@ parseConfig :: [Object] -> Parser Conf
 parseConfig os = Conf
   <$> os `parseElem` "port" .!= 50000
   <*> os `parseElem` "host" .!= "localhost"
+  <*> os `parseElem` "use_tls" .!= False
   <*> os `parseElem` "repository_path" .!= "wikidata"
   <*> os `parseElem` "repository_type" .!= "git"
   <*> os `parseElem` "page_extension" .!= ".page"

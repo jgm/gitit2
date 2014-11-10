@@ -25,7 +25,8 @@ import Config
 import Error
 import ArgParser
 
-data Master = Master { getGitit    :: Gitit
+data Master = Master { settings :: FoundationSettings
+                     , getGitit    :: Gitit
                      , maxUploadSize :: Int
                      , getStatic   :: Static
                      , httpManager :: HC.Manager
@@ -71,7 +72,14 @@ instance Yesod Master where
   maximumContentLength x _ = Just $ fromIntegral $ maxUploadSize x
 
   -- needed for BrowserId - can we set it form config or request?
-  approot = ApprootStatic "http://localhost:3000"
+  approot = ApprootMaster $ appRoot . settings
+
+  -- load resources from /static instead of approot (http://...),
+  -- convenient when serving under https reverse proxy
+  urlRenderOverride y (StaticR s) =
+    Just $ uncurry (joinPath y (staticRoot $ settings y)) $ renderRoute s
+
+  urlRenderOverride _ _ = Nothing
 
 instance YesodAuth Master where
   type AuthId Master = Text
@@ -173,7 +181,8 @@ main = do
 
   man <- HC.newManager HC.conduitManagerSettings
   run (cfg_port conf)  =<< toWaiApp
-      (Master Gitit{ config = gconfig
+      (Master (foundationSettingsFromConf conf)
+              Gitit{ config = gconfig
                     , filestore = fs
                     }
               maxsize
