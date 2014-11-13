@@ -74,13 +74,6 @@ instance Yesod Master where
   -- needed for BrowserId - can we set it form config or request?
   approot = ApprootMaster $ appRoot . settings
 
-  -- load resources from /static instead of approot (http://...),
-  -- convenient when serving under https reverse proxy
-  urlRenderOverride y (StaticR s) =
-    Just $ uncurry (joinPath y (staticRoot $ settings y)) $ renderRoute s
-
-  urlRenderOverride _ _ = Nothing
-
 instance YesodAuth Master where
   type AuthId Master = Text
   getAuthId = return . Just . credsIdent

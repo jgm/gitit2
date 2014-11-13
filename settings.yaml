@@ -1,5 +1,6 @@
-use_tls: false
-host: localhost
+# approot is the base path used for links in your application
+# it defaults to localhost (here http://localhost:3000)
+# approot: http://mydomain:myport
 port: 3000
 repository_path: wikidata
 repository_type: git
