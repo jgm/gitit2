@@ -559,7 +559,7 @@ sourceToHtml path contents = do
         (l:_) -> highlightAs l $ toString contents
 
 mathjax_url :: Text
-mathjax_url = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+mathjax_url = "//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 
 toWikiPage :: HasGitit master => Html -> GH master (WidgetT master IO ())
 toWikiPage rendered = do
