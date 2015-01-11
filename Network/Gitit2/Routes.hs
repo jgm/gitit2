@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ViewPatterns          #-}
 module Network.Gitit2.Routes where
 
 import Data.FileStore (FileStore, RevisionId)

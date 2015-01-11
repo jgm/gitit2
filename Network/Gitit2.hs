@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
-             FlexibleContexts, ScopedTypeVariables, TupleSections #-}
+             FlexibleContexts, ScopedTypeVariables, TupleSections,
+             ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
