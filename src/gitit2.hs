@@ -210,7 +210,8 @@ initializeRepo gconfig fs = do
                           LaTeX    lhs -> writeLaTeX (defOpts lhs) . toPandoc
                           HTML     lhs -> writeHtmlString (defOpts lhs) . toPandoc
                           RST      lhs -> writeRST (defOpts lhs) . toPandoc
-                          Textile  lhs -> writeTextile (defOpts lhs) . toPandoc) contents
+                          Textile  lhs -> writeTextile (defOpts lhs) . toPandoc
+                          Org      lhs -> writeOrg (defOpts lhs) . toPandoc) contents
 
   let fmt = takeWhile (/=' ') $ show $ default_format gconfig
   welcomecontents <- converter ("data" </> "FrontPage.page")
