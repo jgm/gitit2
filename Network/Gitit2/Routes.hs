@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ViewPatterns          #-}
 module Network.Gitit2.Routes where
 
 import Data.FileStore (FileStore, RevisionId)
@@ -138,8 +139,13 @@ pageLayout = PageLayout{
   }
 
 -- | The Boolean is True for literate Haskell.
-data PageFormat = Markdown Bool | RST Bool | LaTeX Bool | HTML Bool | Textile Bool
-                  deriving (Read, Show, Eq )
+data PageFormat = Markdown Bool
+                | RST Bool
+                | LaTeX Bool
+                | HTML Bool
+                | Textile Bool
+                | Org Bool
+                deriving (Read, Show, Eq )
 
 readPageFormat :: Text -> Maybe PageFormat
 readPageFormat s =
@@ -149,6 +155,7 @@ readPageFormat s =
        "latex"     -> Just $ LaTeX lhs
        "html"      -> Just $ HTML lhs
        "rst"       -> Just $ RST lhs
+       "org"       -> Just $ Org lhs
        _           -> Nothing
  where (s',rest) = T.break (=='+') s
        lhs = rest == "+lhs"

@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
-             FlexibleContexts, ScopedTypeVariables, TupleSections #-}
+             FlexibleContexts, ScopedTypeVariables, TupleSections,
+             ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
@@ -527,6 +528,7 @@ contentsToWikiPage page contents = do
                         LaTeX    l -> (readLaTeX (readerOpts l), l)
                         RST      l -> (readRST (readerOpts l), l)
                         HTML     l -> (readHtml (readerOpts l), l)
+                        Org      l -> (readOrg (readerOpts l), l)
   let fromBool (Bool t) = t
       fromBool _        = False
   let toc = maybe False fromBool (M.lookup "toc" metadata)
