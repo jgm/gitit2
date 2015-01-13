@@ -1,16 +1,14 @@
-.PHONY : all clean veryclean install css
+.PHONY : build prep clean veryclean install css
 
-all:
-	cabal-dev configure && cabal-dev build
-
-install:
-	cabal-dev install
+install: prep
+	cabal install
 
 prep:
-	cabal-dev install-deps
+	cabal sandbox init
+	cabal install --only-dependencies
 
 clean:
-	cabal-dev clean
+	cabal clean
 
 veryclean: clean
 	rm -rf cabal-dev
