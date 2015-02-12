@@ -48,7 +48,7 @@ import Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.UTF8 as BSU
 import Data.Conduit (($$))
 import Data.Conduit.List (consume)
-import Text.Blaze.Html hiding (contents)
+import Text.Blaze.Html hiding (contents, text)
 import Blaze.ByteString.Builder (toLazyByteString)
 import Text.HTML.SanitizeXSS (sanitizeAttribute)
 import Data.Monoid (Monoid, mappend)
