@@ -87,6 +87,8 @@ instance YesodAuth Master where
 
   authHttpManager = httpManager
 
+  redirectToReferer _ = True
+
 instance RenderMessage Master FormMessage where
     renderMessage _ _ = defaultFormMessage
 
