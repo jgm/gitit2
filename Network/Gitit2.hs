@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
+{-# LANGUAGE CPP, TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, FlexibleInstances,
              FlexibleContexts, ScopedTypeVariables, TupleSections,
              ViewPatterns #-}
@@ -1029,9 +1029,15 @@ getExportR format page = do
 pureWriter :: (WriterOptions -> Pandoc -> String) -> WriterOptions -> Pandoc -> IO String
 pureWriter w opts d = return $ w opts d
 
+
 toSelfContained :: FilePath -> WriterOptions -> String -> IO String
+#if MIN_VERSION_pandoc(1,13,0)
 toSelfContained repopath w cont =
   inDirectory repopath $ makeSelfContained w cont
+#else
+toSelfContained repopath w cont =
+  inDirectory repopath $ makeSelfContained (writerSourceURL w) cont
+#endif
 
 getExportFormats :: GH master [(Text, (Text, WikiPage -> GH master (ContentType,Content)))]
 getExportFormats = do
