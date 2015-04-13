@@ -173,14 +173,14 @@ data WikiPage = WikiPage {
 } deriving (Show)
 
 -- Create routes.
-mkYesodSubData "Gitit" [parseRoutesNoCheck|
+mkYesodSubData "Gitit" [parseRoutes|
 / HomeR GET
 /_help HelpR GET
 
 /robots.txt GititRobotsR GET
 /favicon.ico GititFaviconR GET
 /_index IndexBaseR GET
-/_index/*Page  IndexR GET
+!/_index/*Page  IndexR GET
 /_random RandomR GET
 /_raw/*Page RawR GET
 /_edit/*Page  EditR GET
@@ -196,12 +196,12 @@ mkYesodSubData "Gitit" [parseRoutesNoCheck|
 /_history/#Int/*Page HistoryR GET
 /_activity/#Int ActivityR GET
 /_atom AtomSiteR GET
-/_atom/*Page AtomPageR GET
+!/_atom/*Page AtomPageR GET
 /_export/#Text/*Page ExportR GET
 /_expire/*Page ExpireR POST
-/_expire ExpireHomeR POST
+!/_expire ExpireHomeR POST
 /_categories CategoriesR GET
 /_category/#Text CategoryR GET
 /_preview PreviewR POST
-/*Page     ViewR GET
+!/*Page     ViewR GET
 |]
