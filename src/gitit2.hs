@@ -25,6 +25,8 @@ import Config
 import Error
 import ArgParser
 
+import Network.Gitit2.WikiPage (PageFormat(..), wpContent)
+
 data Master = Master { settings :: FoundationSettings
                      , getGitit    :: Gitit
                      , maxUploadSize :: Int

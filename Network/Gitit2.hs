@@ -6,7 +6,6 @@
 module Network.Gitit2 ( GititConfig (..)
                       , HtmlMathMethod (..)
                       , Page (..)
-                      , PageFormat (..)
                       , readPageFormat
                       , HasGitit (..)
                       , Gitit (..)
@@ -18,7 +17,6 @@ module Network.Gitit2 ( GititConfig (..)
                       , pageLayout
                       , makeDefaultPage
                       , Plugin (..)
-                      , WikiPage (..)
                       ) where
 
 import Prelude hiding (catch)
@@ -67,6 +65,7 @@ import Network.HTTP.Base (urlEncode, urlDecode)
 import qualified Data.Set as Set
 
 import Network.Gitit2.Routes
+import Network.Gitit2.WikiPage (PageFormat(..), readPageFormat, WikiPage(..))
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>

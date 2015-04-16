@@ -13,9 +13,10 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Text (Text)
 import Text.Blaze.Html hiding (contents)
-import Text.Pandoc (Inline, Block)
 import Yesod hiding (MsgDelete)
 import Yesod.Static
+
+import Network.Gitit2.WikiPage (PageFormat, WikiPage)
 
 -- Create GititMessages.
 mkMessage "Gitit" "messages" "en"
@@ -137,40 +138,6 @@ pageLayout = PageLayout{
   , pgSelectedTab    = ViewTab
   , pgCategories     = []
   }
-
--- | The Boolean is True for literate Haskell.
-data PageFormat = Markdown Bool
-                | RST Bool
-                | LaTeX Bool
-                | HTML Bool
-                | Textile Bool
-                | Org Bool
-                deriving (Read, Show, Eq )
-
-readPageFormat :: Text -> Maybe PageFormat
-readPageFormat s =
-  case T.toLower s' of
-       "markdown"  -> Just $ Markdown lhs
-       "textile"   -> Just $ Textile lhs
-       "latex"     -> Just $ LaTeX lhs
-       "html"      -> Just $ HTML lhs
-       "rst"       -> Just $ RST lhs
-       "org"       -> Just $ Org lhs
-       _           -> Nothing
- where (s',rest) = T.break (=='+') s
-       lhs = rest == "+lhs"
-
-data WikiPage = WikiPage {
-    wpName        :: Text
-  , wpFormat      :: PageFormat
-  , wpTOC         :: Bool
-  , wpLHS         :: Bool
-  , wpTitle       :: [Inline]
-  , wpCategories  :: [Text]
-  , wpMetadata    :: M.Map Text Value
-  , wpCacheable   :: Bool
-  , wpContent     :: [Block]
-} deriving (Show)
 
 -- Create routes.
 
