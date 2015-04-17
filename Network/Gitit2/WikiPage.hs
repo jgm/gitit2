@@ -1,5 +1,6 @@
 module Network.Gitit2.WikiPage
        (
+         extractCategories,
          PageFormat (..),
          WikiPage (..),
          readPageFormat
@@ -10,7 +11,7 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Text (Text)
 import Text.Pandoc (Inline, Block)
-import Yesod (Value)
+import Yesod (Value(String))
 
 data WikiPage = WikiPage {
     wpName        :: Text
@@ -23,6 +24,12 @@ data WikiPage = WikiPage {
   , wpCacheable   :: Bool
   , wpContent     :: [Block]
 } deriving (Show)
+
+extractCategories :: M.Map Text Value -> [Text]
+extractCategories metadata =
+  case M.lookup ("categories" :: Text) metadata of
+       Just (String t) -> T.words $ T.replace "," " " t
+       _               -> []
 
 -- | The Boolean is True for literate Haskell.
 data PageFormat = Markdown Bool

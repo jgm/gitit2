@@ -65,7 +65,7 @@ import Network.HTTP.Base (urlEncode, urlDecode)
 import qualified Data.Set as Set
 
 import Network.Gitit2.Routes
-import Network.Gitit2.WikiPage (PageFormat(..), readPageFormat, WikiPage(..))
+import Network.Gitit2.WikiPage (PageFormat(..), readPageFormat, WikiPage(..), extractCategories)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -1297,12 +1297,6 @@ readCategories f = do
   return $ if BS.null hdr
      then []
      else extractCategories $ fromMaybe M.empty $ decode hdr
-
-extractCategories :: M.Map Text Value -> [Text]
-extractCategories metadata =
-  case M.lookup ("categories" :: Text) metadata of
-       Just (String t) -> T.words $ T.replace "," " " t
-       _               -> []
 
 getHeader :: FilePath -> IO BS.ByteString
 getHeader f =
