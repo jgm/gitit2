@@ -19,53 +19,54 @@ module Network.Gitit2 ( GititConfig (..)
                       , Plugin (..)
                       ) where
 
-import Prelude hiding (catch)
-import qualified Data.Map as M
-import Yesod hiding (MsgDelete)
-import Yesod.Static
-import Data.Ord (comparing)
-import Data.FileStore as FS
-import Data.Char (toLower)
-import System.FilePath
-import Data.List (inits, find, sortBy, isPrefixOf, sort, nub, intercalate)
-import Text.Pandoc
-import Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
-import Text.Pandoc.PDF (makePDF)
-import Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
-import Text.Pandoc.SelfContained (makeSelfContained)
-import Text.Pandoc.Builder (toList, text)
-import Control.Applicative
-import Control.Monad (when, unless, filterM, mplus, foldM)
-import qualified Data.Text as T
-import Data.Text (Text)
-import Data.ByteString.Lazy (ByteString, fromChunks)
-import qualified Data.ByteString.Lazy.Char8 as B
+import           Blaze.ByteString.Builder (toLazyByteString)
+import           Control.Applicative
+import           Control.Exception (catch, throw, handle, try)
+import           Control.Monad (when, unless, filterM, mplus, foldM)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import Data.ByteString.Lazy.UTF8 (toString)
+import           Data.ByteString.Lazy (ByteString, fromChunks)
+import qualified Data.ByteString.Lazy.Char8 as B
+import           Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.UTF8 as BSU
-import Data.Conduit (($$))
-import Data.Conduit.List (consume)
-import Text.Blaze.Html hiding (contents, text)
-import Blaze.ByteString.Builder (toLazyByteString)
-import Text.HTML.SanitizeXSS (sanitizeAttribute)
-import Data.Monoid (Monoid, mappend)
-import Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
-import System.Random (randomRIO)
-import System.IO (Handle, withFile, IOMode(..))
-import System.IO.Error (isEOFError)
-import Control.Exception (catch, throw, handle, try)
-import Text.Highlighting.Kate
-import Data.Time (getCurrentTime, addUTCTime)
-import Yesod.AtomFeed
-import Data.Yaml
-import System.Directory
-import Data.Time.Clock (diffUTCTime)
-import Network.HTTP.Base (urlEncode, urlDecode)
+import           Data.Char (toLower)
+import           Data.Conduit (($$))
+import           Data.Conduit.List (consume)
+import           Data.FileStore as FS
+import           Data.List (inits, find, sortBy, isPrefixOf, sort, nub, intercalate)
+import qualified Data.Map as M
+import           Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
+import           Data.Monoid (Monoid, mappend)
+import           Data.Ord (comparing)
 import qualified Data.Set as Set
+import           Data.Text (Text)
+import qualified Data.Text as T
+import           Data.Time (getCurrentTime, addUTCTime)
+import           Data.Time.Clock (diffUTCTime)
+import           Data.Yaml
+import           Network.HTTP.Base (urlEncode, urlDecode)
+import           Prelude hiding (catch)
+import           System.Directory
+import           System.FilePath
+import           System.IO (Handle, withFile, IOMode(..))
+import           System.IO.Error (isEOFError)
+import           System.Random (randomRIO)
+import           Text.Blaze.Html hiding (contents, text)
+import           Text.HTML.SanitizeXSS (sanitizeAttribute)
+import           Text.Highlighting.Kate
+import           Text.Pandoc
+import           Text.Pandoc.Builder (toList, text)
+import           Text.Pandoc.Generic (bottomUpM)
+import           Text.Pandoc.PDF (makePDF)
+import           Text.Pandoc.SelfContained (makeSelfContained)
+import           Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
+import           Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
+import           Yesod hiding (MsgDelete)
+import           Yesod.AtomFeed
+import           Yesod.Static
 
-import Network.Gitit2.Routes
-import Network.Gitit2.WikiPage (PageFormat(..), readPageFormat, WikiPage(..), extractCategories)
+import           Network.Gitit2.Routes
+import           Network.Gitit2.WikiPage (PageFormat(..), readPageFormat, WikiPage(..), extractCategories)
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
