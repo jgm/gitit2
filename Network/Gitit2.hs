@@ -103,23 +103,6 @@ makeDefaultPage layout content = do
 
 -- HANDLERS and utility functions, not exported:
 
--- | Convert links with no URL to wikilinks.
-convertWikiLinks :: Text -> Inline -> GH master Inline
-convertWikiLinks prefix (Link ref ("", "")) = do
-  toMaster <- getRouteToParent
-  toUrl <- lift getUrlRender
-  let route = ViewR $ textToPage $ T.append prefix $ T.pack $ stringify ref
-  return $ Link ref (T.unpack $ toUrl $ toMaster route, "")
-convertWikiLinks prefix (Image ref ("", "")) = do
-  toMaster <- getRouteToParent
-  toUrl <- lift getUrlRender
-  let route = ViewR $ textToPage $ T.append prefix $ T.pack $ stringify ref
-  return $ Image ref (T.unpack $ toUrl $ toMaster route, "")
-convertWikiLinks _ x = return x
-
-addWikiLinks :: Text -> Pandoc -> GH master Pandoc
-addWikiLinks prefix = bottomUpM (convertWikiLinks prefix)
-
 sanitizePandoc :: Pandoc -> Pandoc
 sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
   where sanitizeBlock (RawBlock _ _) = Text.Pandoc.Null
@@ -476,6 +459,25 @@ contentsToWikiPage page contents = do
            , wpCacheable   = True
            , wpContent     = blocks
            } plugins'
+  where
+    -- | Convert links with no URL to wikilinks.
+    wikiLinksConverter :: Text -> GH master ([Inline] -> String)
+    wikiLinksConverter prefix = do
+      toMaster <- getRouteToParent
+      toUrl <- lift getUrlRender
+      return $ T.unpack . toUrl . toMaster . ViewR . textToPage . (T.append prefix) . T.pack . stringify
+
+    convertWikiLinks :: Text -> Inline -> GH master Inline
+    convertWikiLinks prefix (Link ref ("", "")) = do
+      converter <- wikiLinksConverter prefix
+      return $ Link ref (converter ref, "")
+    convertWikiLinks prefix (Image ref ("", "")) = do
+      converter <- wikiLinksConverter prefix
+      return $ Image ref (converter ref, "")
+    convertWikiLinks _ x = return x
+
+    addWikiLinks :: Text -> Pandoc -> GH master Pandoc
+    addWikiLinks prefix = bottomUpM (convertWikiLinks prefix)
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
