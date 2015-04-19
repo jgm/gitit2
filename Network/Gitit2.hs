@@ -419,38 +419,23 @@ contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GH master WikiPa
 contentsToWikiPage page contents = do
   conf <- getConfig
   plugins' <- getPlugins
-  let (h,b) = stripHeader $ B.lines contents
-  let metadata :: M.Map Text Value
-      metadata = if B.null h
-                    then M.empty
-                    else fromMaybe M.empty
-                         $ decode $! BS.concat $ B.toChunks h
-  let formatStr = case M.lookup "format" metadata of
-                         Just (String s) -> s
-                         _               -> ""
-  let format = fromMaybe (default_format conf) $ readPageFormat formatStr
-  let readerOpts literate = def{ readerSmart = True
-                               , readerExtensions =
-                                   if literate
-                                      then Set.insert Ext_literate_haskell pandocExtensions
-                                      else pandocExtensions }
-  let (reader, lhs) = case format of
-                        Markdown l -> (readMarkdown (readerOpts l), l)
-                        Textile  l -> (readTextile (readerOpts l), l)
-                        LaTeX    l -> (readLaTeX (readerOpts l), l)
-                        RST      l -> (readRST (readerOpts l), l)
-                        HTML     l -> (readHtml (readerOpts l), l)
-                        Org      l -> (readOrg (readerOpts l), l)
-  let fromBool (Bool t) = t
-      fromBool _        = False
-  let toc = maybe False fromBool (M.lookup "toc" metadata)
-  let doc = reader $ toString b
-  let pageToPrefix (Page []) = T.empty
-      pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
   converter <- wikiLinksConverter (pageToPrefix page)
-  let Pandoc _ blocks = sanitizePandoc $ addWikiLinks (converter) doc
-  foldM applyPlugin
-           WikiPage {
+  foldM applyPlugin (contentToWikiPage' page contents converter conf) plugins'
+  where
+    -- | Convert links with no URL to wikilinks.
+    wikiLinksConverter :: Text -> GH master ([Inline] -> String)
+    wikiLinksConverter prefix = do
+      toMaster <- getRouteToParent
+      toUrl <- lift getUrlRender
+      return $ T.unpack . toUrl . toMaster . ViewR . textToPage . (T.append prefix) . T.pack . stringify
+
+    pageToPrefix (Page []) = T.empty
+    pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
+
+
+contentToWikiPage' :: Page -> ByteString -> ([Inline] -> String) -> GititConfig -> WikiPage
+contentToWikiPage' page contents converter conf =
+  WikiPage {
              wpName        = pageToText page
            , wpFormat      = format
            , wpTOC         = toc
@@ -460,22 +445,42 @@ contentsToWikiPage page contents = do
            , wpMetadata    = metadata
            , wpCacheable   = True
            , wpContent     = blocks
-           } plugins'
+           }
   where
-    -- | Convert links with no URL to wikilinks.
-    wikiLinksConverter :: Text -> GH master ([Inline] -> String)
-    wikiLinksConverter prefix = do
-      toMaster <- getRouteToParent
-      toUrl <- lift getUrlRender
-      return $ T.unpack . toUrl . toMaster . ViewR . textToPage . (T.append prefix) . T.pack . stringify
+    (h,b) = stripHeader $ B.lines contents
+    metadata :: M.Map Text Value
+    metadata = if B.null h
+                  then M.empty
+                  else fromMaybe M.empty
+                       $ decode $! BS.concat $ B.toChunks h
+    formatStr = case M.lookup "format" metadata of
+                       Just (String s) -> s
+                       _               -> ""
+    format = fromMaybe (default_format conf) $ readPageFormat formatStr
+    readerOpts literate = def{ readerSmart = True
+                             , readerExtensions =
+                                 if literate
+                                    then Set.insert Ext_literate_haskell pandocExtensions
+                                    else pandocExtensions }
+    (reader, lhs) = case format of
+                      Markdown l -> (readMarkdown (readerOpts l), l)
+                      Textile  l -> (readTextile (readerOpts l), l)
+                      LaTeX    l -> (readLaTeX (readerOpts l), l)
+                      RST      l -> (readRST (readerOpts l), l)
+                      HTML     l -> (readHtml (readerOpts l), l)
+                      Org      l -> (readOrg (readerOpts l), l)
+    fromBool (Bool t) = t
+    fromBool _        = False
+    toc = maybe False fromBool (M.lookup "toc" metadata)
+    doc = reader $ toString b
+    Pandoc _ blocks = sanitizePandoc $ addWikiLinks doc
+    convertWikiLinks :: Inline -> Inline
+    convertWikiLinks (Link ref ("", "")) = Link ref (converter ref, "")
+    convertWikiLinks (Image ref ("", "")) = Image ref (converter ref, "")
+    convertWikiLinks x = x
 
-    convertWikiLinks :: ([Inline] -> String) -> Inline -> Inline
-    convertWikiLinks converter (Link ref ("", "")) = Link ref (converter ref, "")
-    convertWikiLinks converter (Image ref ("", "")) = Image ref (converter ref, "")
-    convertWikiLinks _ x = x
-
-    addWikiLinks :: ([Inline] -> String) -> Pandoc -> Pandoc
-    addWikiLinks converter doc = bottomUp (convertWikiLinks converter) doc
+    addWikiLinks :: Pandoc -> Pandoc
+    addWikiLinks = bottomUp (convertWikiLinks)
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
