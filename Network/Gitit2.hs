@@ -468,17 +468,17 @@ contentsToWikiPage page contents = do
       toUrl <- lift getUrlRender
       return $ T.unpack . toUrl . toMaster . ViewR . textToPage . (T.append prefix) . T.pack . stringify
 
-    convertWikiLinks :: Text -> Inline -> GH master Inline
-    convertWikiLinks prefix (Link ref ("", "")) = do
-      converter <- wikiLinksConverter prefix
+    convertWikiLinks :: ([Inline] -> String) -> Inline -> GH master Inline
+    convertWikiLinks converter (Link ref ("", "")) = do
       return $ Link ref (converter ref, "")
-    convertWikiLinks prefix (Image ref ("", "")) = do
-      converter <- wikiLinksConverter prefix
+    convertWikiLinks converter (Image ref ("", "")) = do
       return $ Image ref (converter ref, "")
     convertWikiLinks _ x = return x
 
     addWikiLinks :: Text -> Pandoc -> GH master Pandoc
-    addWikiLinks prefix = bottomUpM (convertWikiLinks prefix)
+    addWikiLinks prefix doc = do
+      converter <- wikiLinksConverter prefix
+      bottomUpM (convertWikiLinks converter) doc
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
