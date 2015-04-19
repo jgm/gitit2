@@ -420,7 +420,9 @@ contentsToWikiPage page contents = do
   conf <- getConfig
   plugins' <- getPlugins
   converter <- wikiLinksConverter (pageToPrefix page)
-  foldM applyPlugin (contentToWikiPage' page contents converter conf) plugins'
+  let title = pageToText page
+  let defaultFormat = default_format conf
+  foldM applyPlugin (contentToWikiPage' title contents converter defaultFormat) plugins'
   where
     -- | Convert links with no URL to wikilinks.
     wikiLinksConverter :: Text -> GH master ([Inline] -> String)
@@ -433,14 +435,14 @@ contentsToWikiPage page contents = do
     pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
 
 
-contentToWikiPage' :: Page -> ByteString -> ([Inline] -> String) -> GititConfig -> WikiPage
-contentToWikiPage' page contents converter conf =
+contentToWikiPage' :: Text -> ByteString -> ([Inline] -> String) -> PageFormat -> WikiPage
+contentToWikiPage' title contents converter defaultFormat =
   WikiPage {
-             wpName        = pageToText page
+             wpName        = title
            , wpFormat      = format
            , wpTOC         = toc
            , wpLHS         = lhs
-           , wpTitle       = toList $ text $ T.unpack $ pageToText page
+           , wpTitle       = toList $ text $ T.unpack $ title
            , wpCategories  = extractCategories metadata
            , wpMetadata    = metadata
            , wpCacheable   = True
@@ -456,7 +458,7 @@ contentToWikiPage' page contents converter conf =
     formatStr = case M.lookup "format" metadata of
                        Just (String s) -> s
                        _               -> ""
-    format = fromMaybe (default_format conf) $ readPageFormat formatStr
+    format = fromMaybe defaultFormat $ readPageFormat formatStr
     readerOpts literate = def{ readerSmart = True
                              , readerExtensions =
                                  if literate
