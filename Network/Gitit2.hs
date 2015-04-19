@@ -447,7 +447,8 @@ contentsToWikiPage page contents = do
   let doc = reader $ toString b
   let pageToPrefix (Page []) = T.empty
       pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
-  Pandoc _ blocks <- sanitizePandoc <$> addWikiLinks (pageToPrefix page) doc
+  converter <- wikiLinksConverter (pageToPrefix page)
+  let Pandoc _ blocks = sanitizePandoc $ addWikiLinks (converter) doc
   foldM applyPlugin
            WikiPage {
              wpName        = pageToText page
@@ -468,17 +469,13 @@ contentsToWikiPage page contents = do
       toUrl <- lift getUrlRender
       return $ T.unpack . toUrl . toMaster . ViewR . textToPage . (T.append prefix) . T.pack . stringify
 
-    convertWikiLinks :: ([Inline] -> String) -> Inline -> GH master Inline
-    convertWikiLinks converter (Link ref ("", "")) = do
-      return $ Link ref (converter ref, "")
-    convertWikiLinks converter (Image ref ("", "")) = do
-      return $ Image ref (converter ref, "")
-    convertWikiLinks _ x = return x
+    convertWikiLinks :: ([Inline] -> String) -> Inline -> Inline
+    convertWikiLinks converter (Link ref ("", "")) = Link ref (converter ref, "")
+    convertWikiLinks converter (Image ref ("", "")) = Image ref (converter ref, "")
+    convertWikiLinks _ x = x
 
-    addWikiLinks :: Text -> Pandoc -> GH master Pandoc
-    addWikiLinks prefix doc = do
-      converter <- wikiLinksConverter prefix
-      bottomUpM (convertWikiLinks converter) doc
+    addWikiLinks :: ([Inline] -> String) -> Pandoc -> Pandoc
+    addWikiLinks converter doc = bottomUp (convertWikiLinks converter) doc
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
