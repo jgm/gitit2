@@ -104,26 +104,6 @@ makeDefaultPage layout content = do
 
 -- HANDLERS and utility functions, not exported:
 
-sanitizePandoc :: Pandoc -> Pandoc
-sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
-  where sanitizeBlock (RawBlock _ _) = Text.Pandoc.Null
-        sanitizeBlock (CodeBlock (id',classes,attrs) x) =
-          CodeBlock (id', classes, sanitizeAttrs attrs) x
-        sanitizeBlock x = x
-        sanitizeInline (RawInline _ _) = Str ""
-        sanitizeInline (Code (id',classes,attrs) x) =
-          Code (id', classes, sanitizeAttrs attrs) x
-        sanitizeInline (Link lab (src,tit)) = Link lab (sanitizeURI src,tit)
-        sanitizeInline (Image alt (src,tit)) = Image alt (sanitizeURI src,tit)
-        sanitizeInline x = x
-        sanitizeURI src = case sanitizeAttribute ("href", T.pack src) of
-                               Just (_,z) -> T.unpack z
-                               Nothing    -> ""
-        sanitizeAttrs = mapMaybe sanitizeAttr
-        sanitizeAttr (x,y) = case sanitizeAttribute (T.pack x, T.pack y) of
-                                  Just (w,z) -> Just (T.unpack w, T.unpack z)
-                                  Nothing    -> Nothing
-
 pathForPage :: Page -> GH master FilePath
 pathForPage p = do
   conf <- getConfig
@@ -483,6 +463,28 @@ contentToWikiPage' title contents converter defaultFormat =
 
     addWikiLinks :: Pandoc -> Pandoc
     addWikiLinks = bottomUp (convertWikiLinks)
+
+    sanitizePandoc :: Pandoc -> Pandoc
+    sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
+      where
+        sanitizeBlock (RawBlock _ _) = Text.Pandoc.Null
+        sanitizeBlock (CodeBlock (id',classes,attrs) x) =
+          CodeBlock (id', classes, sanitizeAttrs attrs) x
+        sanitizeBlock x = x
+        sanitizeInline (RawInline _ _) = Str ""
+        sanitizeInline (Code (id',classes,attrs) x) =
+          Code (id', classes, sanitizeAttrs attrs) x
+        sanitizeInline (Link lab (src,tit)) = Link lab (sanitizeURI src,tit)
+        sanitizeInline (Image alt (src,tit)) = Image alt (sanitizeURI src,tit)
+        sanitizeInline x = x
+        sanitizeURI src = case sanitizeAttribute ("href", T.pack src) of
+                               Just (_,z) -> T.unpack z
+                               Nothing    -> ""
+        sanitizeAttrs = mapMaybe sanitizeAttr
+        sanitizeAttr (x,y) = case sanitizeAttribute (T.pack x, T.pack y) of
+                                  Just (w,z) -> Just (T.unpack w, T.unpack z)
+                                  Nothing    -> Nothing
+
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
