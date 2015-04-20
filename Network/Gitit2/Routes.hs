@@ -10,12 +10,12 @@ module Network.Gitit2.Routes where
 
 import Data.FileStore (FileStore, RevisionId)
 import qualified Data.Map as M
-import qualified Data.Text as T
 import Data.Text (Text)
 import Text.Blaze.Html hiding (contents)
 import Yesod hiding (MsgDelete)
 import Yesod.Static
 
+import Network.Gitit2.Page (Page)
 import Network.Gitit2.WikiPage (PageFormat, WikiPage)
 
 -- Create GititMessages.
@@ -71,39 +71,6 @@ data GititConfig = GititConfig{
      , help_page        :: Text                     -- ^ Help page
      , latex_engine     :: Maybe FilePath           -- ^ LaTeX engine to use for PDF export
      }
-
--- | Path to a wiki page.  Page and page components can't begin with '_'.
-data Page = Page [Text] deriving (Show, Read, Eq)
-
--- for now, we disallow @*@ and @?@ in page names, because git filestore
--- does not deal with them properly, and darcs filestore disallows them.
-instance PathMultiPiece Page where
-  toPathMultiPiece (Page x) = x
-  fromPathMultiPiece []     = Nothing
-  fromPathMultiPiece xs@(_:_) =
-     if any (\x ->  "_" `T.isPrefixOf` x ||
-                    "*" `T.isInfixOf` x ||
-                    "?" `T.isInfixOf` x ||
-                    ".." `T.isInfixOf` x ||
-                    "/_" `T.isInfixOf` x) xs
-                    then Nothing
-                    else Just (Page xs)
-
-pageToText :: Page -> Text
-pageToText (Page xs) = T.intercalate "/" xs
-
-textToPage :: Text -> Page
-textToPage x = Page $ T.splitOn "/" x
-
-instance ToMarkup Page where
-  toMarkup = toMarkup . pageToText
-
-instance ToMessage Page where
-  toMessage = pageToText
-
-instance ToMarkup (Maybe Page) where
-  toMarkup (Just x) = toMarkup x
-  toMarkup Nothing  = ""
 
 -- | A user.
 data GititUser = GititUser{ gititUserName  :: String

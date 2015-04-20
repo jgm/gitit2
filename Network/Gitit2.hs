@@ -19,6 +19,10 @@ module Network.Gitit2 ( GititConfig (..)
                       , Plugin (..)
                       ) where
 
+#if __GLASGOW_HASKELL__ <= 704
+import           Prelude hiding (catch)
+#endif
+
 import           Blaze.ByteString.Builder (toLazyByteString)
 import           Control.Applicative
 import           Control.Exception (catch, throw, handle, try)
@@ -45,18 +49,14 @@ import           Data.Time (getCurrentTime, addUTCTime)
 import           Data.Time.Clock (diffUTCTime)
 import           Data.Yaml
 import           Network.HTTP.Base (urlEncode, urlDecode)
-import           Prelude hiding (catch)
 import           System.Directory
 import           System.FilePath
 import           System.IO (Handle, withFile, IOMode(..))
 import           System.IO.Error (isEOFError)
 import           System.Random (randomRIO)
-import           Text.Blaze.Html hiding (contents, text)
-import           Text.HTML.SanitizeXSS (sanitizeAttribute)
+import           Text.Blaze.Html hiding (contents)
 import           Text.Highlighting.Kate
 import           Text.Pandoc
-import           Text.Pandoc.Builder (toList, text)
-import           Text.Pandoc.Generic (bottomUpM)
 import           Text.Pandoc.PDF (makePDF)
 import           Text.Pandoc.SelfContained (makeSelfContained)
 import           Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
@@ -65,8 +65,9 @@ import           Yesod hiding (MsgDelete)
 import           Yesod.AtomFeed
 import           Yesod.Static
 
+import           Network.Gitit2.Page
 import           Network.Gitit2.Routes
-import           Network.Gitit2.WikiPage (PageFormat(..), readPageFormat, WikiPage(..), extractCategories)
+import           Network.Gitit2.WikiPage (readPageFormat, WikiPage(..), extractCategories, contentToWikiPage')
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -107,33 +108,15 @@ makeDefaultPage layout content = do
 pathForPage :: Page -> GH master FilePath
 pathForPage p = do
   conf <- getConfig
-  return $ T.unpack (toMessage p) <> page_extension conf
+  return $ pathForPageP (page_extension conf) p
 
-pathForFile :: Page -> GH master FilePath
-pathForFile p = return $ T.unpack $ toMessage p
+-- pathForFile :: Page -> GH master FilePath
+-- pathForFile p = return $ T.unpack $ toMessage p
 
 pageForPath :: FilePath -> GH master Page
 pageForPath fp = do
   conf <- getConfig
-  return $ textToPage $ T.pack $
-    if takeExtension fp == page_extension conf
-       then dropExtension fp
-       else fp
-
-isDiscussPage :: Page -> Bool
-isDiscussPage (Page xs) = case reverse xs of
-                               (x:_) -> "@" `T.isPrefixOf` x
-                               _     -> False
-
-discussPageFor :: Page -> Page
-discussPageFor (Page xs)
-  | isDiscussPage (Page xs) = Page xs
-  | otherwise               = Page $ init xs ++ ["@" <> last xs]
-
-discussedPage :: Page -> Page
-discussedPage (Page xs)
-  | isDiscussPage (Page xs) = Page $ init xs ++ [T.drop 1 $ last xs]
-  | otherwise               = Page xs
+  return $ pageForPathP (page_extension conf) fp
 
 isPageFile :: FilePath -> GH master Bool
 isPageFile f = do
@@ -191,7 +174,7 @@ getRawR page = do
   mbcont <- getRawContents path Nothing
   case mbcont of
        Nothing       -> do
-         path' <- pathForFile page
+         let path' = pathForFile page
          mbcont' <- getRawContents path' Nothing
          case mbcont' of
               Nothing   -> notFound
@@ -207,7 +190,7 @@ getDeleteR page = do
   fileToDelete <- case pageTest of
                        Right _        -> return path
                        Left  FS.NotFound -> do
-                         path' <- pathForFile page
+                         let path' = pathForFile page
                          fileTest <- liftIO $ try $ latest fs path'
                          case fileTest of
                               Right _     -> return path' -- a file
@@ -242,7 +225,7 @@ postDeleteR page = do
 getViewR :: HasGitit master => Page -> GH master Html
 getViewR page = do
   pathForPage page >>= tryCache
-  pathForFile page >>= tryCache
+  tryCache $ pathForFile page
   view Nothing page
 
 postPreviewR :: HasGitit master => GH master Html
@@ -275,7 +258,7 @@ view mbrev page = do
          mbcache $ layout [ViewTab,EditTab,HistoryTab,DiscussTab]
                             (wpCategories wikipage) htmlContents
        Nothing -> do
-         path' <- pathForFile page
+         let path' = pathForFile page
          mbcont' <- getRawContents path' mbrev
          is_source <- isSourceFile path'
          case mbcont' of
@@ -384,17 +367,6 @@ pageToHtml wikiPage =
              , writerHTMLMathMethod = MathML Nothing
              } $ Pandoc nullMeta (wpContent wikiPage)
 
-stripHeader :: [ByteString] -> (ByteString,ByteString)
-stripHeader (x:xs)
-  | isHeaderStart x = let (hs, bs) = break isHeaderEnd xs
-                      in  case bs of
-                             []     -> (B.unlines (x:xs), B.empty)
-                             (_:ys) -> (B.unlines hs, B.unlines ys)
-  | otherwise = (B.empty, B.unlines (x:xs))
- where isHeaderStart z = ["---"] == B.words z
-       isHeaderEnd   z = ["..."] == B.words z
-stripHeader [] = (B.empty, B.empty)
-
 contentsToWikiPage :: HasGitit master => Page  -> ByteString -> GH master WikiPage
 contentsToWikiPage page contents = do
   conf <- getConfig
@@ -413,78 +385,6 @@ contentsToWikiPage page contents = do
 
     pageToPrefix (Page []) = T.empty
     pageToPrefix (Page ps) = T.intercalate "/" $ init ps ++ [T.empty]
-
-
-contentToWikiPage' :: Text -> ByteString -> ([Inline] -> String) -> PageFormat -> WikiPage
-contentToWikiPage' title contents converter defaultFormat =
-  WikiPage {
-             wpName        = title
-           , wpFormat      = format
-           , wpTOC         = toc
-           , wpLHS         = lhs
-           , wpTitle       = toList $ text $ T.unpack $ title
-           , wpCategories  = extractCategories metadata
-           , wpMetadata    = metadata
-           , wpCacheable   = True
-           , wpContent     = blocks
-           }
-  where
-    (h,b) = stripHeader $ B.lines contents
-    metadata :: M.Map Text Value
-    metadata = if B.null h
-                  then M.empty
-                  else fromMaybe M.empty
-                       $ decode $! BS.concat $ B.toChunks h
-    formatStr = case M.lookup "format" metadata of
-                       Just (String s) -> s
-                       _               -> ""
-    format = fromMaybe defaultFormat $ readPageFormat formatStr
-    readerOpts literate = def{ readerSmart = True
-                             , readerExtensions =
-                                 if literate
-                                    then Set.insert Ext_literate_haskell pandocExtensions
-                                    else pandocExtensions }
-    (reader, lhs) = case format of
-                      Markdown l -> (readMarkdown (readerOpts l), l)
-                      Textile  l -> (readTextile (readerOpts l), l)
-                      LaTeX    l -> (readLaTeX (readerOpts l), l)
-                      RST      l -> (readRST (readerOpts l), l)
-                      HTML     l -> (readHtml (readerOpts l), l)
-                      Org      l -> (readOrg (readerOpts l), l)
-    fromBool (Bool t) = t
-    fromBool _        = False
-    toc = maybe False fromBool (M.lookup "toc" metadata)
-    doc = reader $ toString b
-    Pandoc _ blocks = sanitizePandoc $ addWikiLinks doc
-    convertWikiLinks :: Inline -> Inline
-    convertWikiLinks (Link ref ("", "")) = Link ref (converter ref, "")
-    convertWikiLinks (Image ref ("", "")) = Image ref (converter ref, "")
-    convertWikiLinks x = x
-
-    addWikiLinks :: Pandoc -> Pandoc
-    addWikiLinks = bottomUp (convertWikiLinks)
-
-    sanitizePandoc :: Pandoc -> Pandoc
-    sanitizePandoc = bottomUp sanitizeBlock . bottomUp sanitizeInline
-      where
-        sanitizeBlock (RawBlock _ _) = Text.Pandoc.Null
-        sanitizeBlock (CodeBlock (id',classes,attrs) x) =
-          CodeBlock (id', classes, sanitizeAttrs attrs) x
-        sanitizeBlock x = x
-        sanitizeInline (RawInline _ _) = Str ""
-        sanitizeInline (Code (id',classes,attrs) x) =
-          Code (id', classes, sanitizeAttrs attrs) x
-        sanitizeInline (Link lab (src,tit)) = Link lab (sanitizeURI src,tit)
-        sanitizeInline (Image alt (src,tit)) = Image alt (sanitizeURI src,tit)
-        sanitizeInline x = x
-        sanitizeURI src = case sanitizeAttribute ("href", T.pack src) of
-                               Just (_,z) -> T.unpack z
-                               Nothing    -> ""
-        sanitizeAttrs = mapMaybe sanitizeAttr
-        sanitizeAttr (x,y) = case sanitizeAttribute (T.pack x, T.pack y) of
-                                  Just (w,z) -> Just (T.unpack w, T.unpack z)
-                                  Nothing    -> Nothing
-
 
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
@@ -724,7 +624,7 @@ getDiffR :: HasGitit master
 getDiffR fromRev toRev page = do
   fs <- filestore <$> getYesod
   pagePath <- pathForPage page
-  filePath <- pathForFile page
+  let filePath = pathForFile page
   rawDiff <- liftIO
              $ catch (diff fs pagePath (Just fromRev) (Just toRev))
              $ \e -> case e of
@@ -753,7 +653,7 @@ getHistoryR start page = do
   let items = 20 -- items per page
   fs <- filestore <$> getYesod
   pagePath <- pathForPage page
-  filePath <- pathForFile page
+  let filePath = pathForFile page
   path <- liftIO
           $ catch (latest fs pagePath >> return pagePath)
           $ \e -> case e of
@@ -1137,7 +1037,7 @@ postUploadR = do
          let page = textToPage $ uploadWikiname r
          let auth = Author (gititUserName user) (gititUserEmail user)
          let comm = T.unpack $ uploadDescription r
-         path <- pathForFile page
+         let path = pathForFile page
          allfiles <- liftIO $ index fs
          if path `elem` allfiles && not (uploadOverwrite r)
             then do
@@ -1175,7 +1075,7 @@ postExpireR page = do
   when useCache $
      do
        pathForPage page >>= expireCache
-       pathForFile page >>= expireCache
+       expireCache $ pathForFile page
   redirect $ ViewR page
 
 caching :: ToTypedContent a

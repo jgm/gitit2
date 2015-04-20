@@ -48,6 +48,7 @@ library
     exposed-modules: Network.Gitit2
                      Network.Gitit2.Routes
                      Network.Gitit2.WikiPage
+                     Network.Gitit2.Page
     extensions: TemplateHaskell
                 QuasiQuotes
                 OverloadedStrings
