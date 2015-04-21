@@ -6,7 +6,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ViewPatterns          #-}
-module Network.Gitit2.Routes where
+module Network.Gitit2.Foundation where
 
 import Data.FileStore (FileStore, RevisionId)
 import qualified Data.Map as M

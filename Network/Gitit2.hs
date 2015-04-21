@@ -43,7 +43,6 @@ import           Data.Time.Clock (diffUTCTime)
 import           Data.Yaml
 import           Network.Gitit2.Import
 import           Network.Gitit2.Page
-import           Network.Gitit2.Routes
 import           Network.Gitit2.WikiPage (readPageFormat, WikiPage(..), extractCategories, contentToWikiPage')
 import           Network.HTTP.Base (urlEncode, urlDecode)
 import           System.Directory
