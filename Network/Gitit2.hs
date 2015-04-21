@@ -48,6 +48,9 @@ import qualified Data.Text as T
 import           Data.Time (getCurrentTime, addUTCTime)
 import           Data.Time.Clock (diffUTCTime)
 import           Data.Yaml
+import           Network.Gitit2.Page
+import           Network.Gitit2.Routes
+import           Network.Gitit2.WikiPage (readPageFormat, WikiPage(..), extractCategories, contentToWikiPage')
 import           Network.HTTP.Base (urlEncode, urlDecode)
 import           System.Directory
 import           System.FilePath
@@ -56,6 +59,7 @@ import           System.IO.Error (isEOFError)
 import           System.Random (randomRIO)
 import           Text.Blaze.Html hiding (contents)
 import           Text.Highlighting.Kate
+import           Text.Julius (juliusFile)
 import           Text.Pandoc
 import           Text.Pandoc.PDF (makePDF)
 import           Text.Pandoc.SelfContained (makeSelfContained)
@@ -65,9 +69,6 @@ import           Yesod hiding (MsgDelete)
 import           Yesod.AtomFeed
 import           Yesod.Static
 
-import           Network.Gitit2.Page
-import           Network.Gitit2.Routes
-import           Network.Gitit2.WikiPage (readPageFormat, WikiPage(..), extractCategories, contentToWikiPage')
 
 -- This is defined in GHC 7.04+, but for compatibility we define it here.
 infixr 5 <>
@@ -283,28 +284,10 @@ view mbrev page = do
                                                    then DiscussTab
                                                    else ViewTab } $
                     do setTitle $ toMarkup page
-                       toWidget [julius|
-                                   $(document).keypress(function(event) {
-                                       if (event.which == 18) {
-                                          $.post("@{toMaster $ ExpireR page}");
-                                          window.location.reload(true);
-                                          };
-                                       });
-                                |]
+                       toWidget $(juliusFile "templates/view.julius")
                        atomLink (toMaster $ AtomPageR page)
                           "Atom link for this page"
-                       [whamlet|
-                         <h1 .title>#{page}
-                         $maybe rev <- mbrev
-                           <h2 .revision>#{rev}
-                         ^{contw}
-                         $if null categories
-                         $else
-                           <div#categories>
-                             <ul>
-                               $forall category <- categories
-                                 <li><a href=@{toMaster $ CategoryR category}>#{category}
-                       |]
+                       $(whamletFile "templates/view.hamlet")
 
 getIndexBaseR :: HasGitit master => GH master Html
 getIndexBaseR = getIndexFor []
