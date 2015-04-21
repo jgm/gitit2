@@ -20,6 +20,7 @@ import           Control.Applicative  as Import (pure, (<$>), (<*>))
 import           Data.Text            as Import (Text)
 
 import           Network.Gitit2.Foundation as Import
+import           Network.Gitit2.Helper as Import
 -- import           Settings             as Import
 -- import           Settings.Development as Import
 -- import           Settings.StaticFiles as Import
