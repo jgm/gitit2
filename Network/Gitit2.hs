@@ -19,12 +19,7 @@ module Network.Gitit2 ( GititConfig (..)
                       , Plugin (..)
                       ) where
 
-#if __GLASGOW_HASKELL__ <= 704
-import           Prelude hiding (catch)
-#endif
-
 import           Blaze.ByteString.Builder (toLazyByteString)
-import           Control.Applicative
 import           Control.Exception (catch, throw, handle, try)
 import           Control.Monad (when, unless, filterM, mplus, foldM)
 import qualified Data.ByteString as BS
@@ -40,14 +35,13 @@ import           Data.FileStore as FS
 import           Data.List (inits, find, sortBy, isPrefixOf, sort, nub, intercalate)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
-import           Data.Monoid (Monoid, mappend)
 import           Data.Ord (comparing)
 import qualified Data.Set as Set
-import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Time (getCurrentTime, addUTCTime)
 import           Data.Time.Clock (diffUTCTime)
 import           Data.Yaml
+import           Network.Gitit2.Import
 import           Network.Gitit2.Page
 import           Network.Gitit2.Routes
 import           Network.Gitit2.WikiPage (readPageFormat, WikiPage(..), extractCategories, contentToWikiPage')
@@ -65,15 +59,8 @@ import           Text.Pandoc.PDF (makePDF)
 import           Text.Pandoc.SelfContained (makeSelfContained)
 import           Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
 import           Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
-import           Yesod hiding (MsgDelete)
 import           Yesod.AtomFeed
 import           Yesod.Static
-
-
--- This is defined in GHC 7.04+, but for compatibility we define it here.
-infixr 5 <>
-(<>) :: Monoid m => m -> m -> m
-(<>) = mappend
 
 instance HasGitit master => YesodSubDispatch Gitit (HandlerT master IO) where
     yesodSubDispatch = $(mkYesodSubDispatch resourcesGitit)

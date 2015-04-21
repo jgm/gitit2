@@ -49,6 +49,9 @@ library
                      Network.Gitit2.Routes
                      Network.Gitit2.WikiPage
                      Network.Gitit2.Page
+
+    other-modules: Network.Gitit2.Import
+
     extensions: TemplateHaskell
                 QuasiQuotes
                 OverloadedStrings
