@@ -2,17 +2,17 @@ module Network.Gitit2.Cache
        where
 
 import           Blaze.ByteString.Builder (toLazyByteString)
-import           Control.Monad (filterM, when)
+import           Control.Applicative ((<$>))
+import           Control.Monad (filterM, unless, when)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString.UTF8 as BSU
-import           Network.Gitit2.Foundation (GH, cache_dir, use_cache)
+import           Data.Time (diffUTCTime, getCurrentTime)
+import           Network.Gitit2.Foundation (GH, cache_dir, feed_minutes, use_cache)
 import           Network.Gitit2.Helper (getConfig)
-import           Network.HTTP (urlDecode)
-import           Network.HTTP (urlEncode)
-import           System.Directory (createDirectoryIfMissing)
-import           System.Directory (doesDirectoryExist, doesFileExist, getDirectoryContents)
-import           System.FilePath ((</>))
-import           System.FilePath (takeDirectory)
+import           Network.HTTP (urlDecode, urlEncode)
+import           System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist,
+                                   getDirectoryContents, getModificationTime, removeDirectoryRecursive)
+import           System.FilePath ((</>), takeDirectory)
 import           Yesod (Content(ContentBuilder), liftIO, sendFile, toTypedContent, ToTypedContent, TypedContent(TypedContent))
 
 tryCache :: FilePath -> GH master ()
@@ -55,3 +55,37 @@ cacheContent path (TypedContent ct content) = do
             _ -> liftIO $
               -- TODO replace w logging
               putStrLn $ "Can't cache " ++ path
+
+expireCache :: FilePath -> GH master ()
+expireCache path = do
+  conf <- getConfig
+  expireFeed (feed_minutes conf) (path </> "_feed")
+  expireFeed (feed_minutes conf) "_feed"
+  expireCategories
+  cachedir <- cache_dir <$> getConfig
+  let fullpath = cachedir </> path
+  liftIO $ do
+    exists <- doesDirectoryExist fullpath
+    when exists $ removeDirectoryRecursive fullpath
+
+
+expireCategories :: GH master ()
+expireCategories = do
+  cachedir <- cache_dir <$> getConfig
+  let fullpath = cachedir </> "_categories"
+  liftIO $ do
+    exists <- doesDirectoryExist fullpath
+    when exists $ removeDirectoryRecursive fullpath
+
+-- | Expire the cached feed unless it is younger than 'minutes' old.
+expireFeed :: Integer -> FilePath -> GH master ()
+expireFeed minutes path = do
+  cachedir <- cache_dir <$> getConfig
+  let fullpath = cachedir </> path
+  liftIO $ do
+    exists <- doesDirectoryExist fullpath
+    when exists $ do
+      seconds <- getModificationTime fullpath
+      seconds' <- getCurrentTime
+      unless (diffUTCTime seconds' seconds < realToFrac (minutes * 60))
+        $ removeDirectoryRecursive fullpath

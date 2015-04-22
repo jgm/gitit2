@@ -39,6 +39,7 @@ import           Data.Time.Clock (diffUTCTime)
 import           Data.Yaml
 import           Network.Gitit2.Cache
 import           Network.Gitit2.Handler.History
+import           Network.Gitit2.Handler.Upload
 import           Network.Gitit2.Handler.View
 import           Network.Gitit2.Import
 import           Network.Gitit2.Page
@@ -515,96 +516,6 @@ feed mbpage = do
 -- other slide show issues (e.g. dzslides core)
 -- add pdf, docx, odt, epu
 
-getUploadR :: HasGitit master => GH master Html
-getUploadR = do
-  requireUser
-  (form, enctype) <- lift $ generateFormPost $ uploadForm Nothing
-  showUploadForm enctype form
-
-showUploadForm :: HasGitit master
-               => Enctype
-               -> WidgetT master IO ()
-               -> GH master Html
-showUploadForm enctype form = do
-  toMaster <- getRouteToParent
-  makePage pageLayout{ pgName = Nothing
-                     , pgTabs = []
-                     , pgSelectedTab = EditTab } $ do
-    toWidget $ [julius|
-      $(document).ready(function(){
-          $("#file").change(function () {
-            var fn = $(this).val().replace(/.*\\/,"");
-            $("#wikiname").val(fn);
-          });
-        });
-    |]
-    [whamlet|
-      <h1>_{MsgUploadFile}</h1>
-      <div #uploadform>
-        <form method=post action=@{toMaster UploadR} enctype=#{enctype}>
-          ^{form}
-          <input type=submit>
-    |]
-
-data Upload = Upload { uploadFile        :: FileInfo
-                     , uploadWikiname    :: Text
-                     , uploadDescription :: Text
-                     , uploadOverwrite   :: Bool
-                     }
-
-uploadForm :: HasGitit master
-           => Maybe Upload
-           -> Html
-           -> MForm (HandlerT master IO) (FormResult Upload, WidgetT master IO ())
-uploadForm mbupload =
-  renderDivs $ Upload
-     <$> fileAFormReq (fieldSettingsLabel MsgFileToUpload){
-                fsId = Just "file" }
-     <*> areq pageField (fieldSettingsLabel MsgWikiName){
-                fsId = Just "wikiname" } (uploadWikiname <$> mbupload)
-     <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
-            (uploadDescription <$> mbupload)
-     <*> areq checkBoxField (fieldSettingsLabel MsgOverwrite)
-            (uploadOverwrite <$> mbupload)
-   where commentField = check validateNonempty textField
-         validateNonempty y
-           | T.null y = Left MsgValueRequired
-           | otherwise = Right y
-         pageField = check validatePage textField
-         validatePage x = case fromPathMultiPiece (T.splitOn "/" x) of
-                                Just (_ :: Page) -> Right x
-                                Nothing          -> Left MsgInvalidPageName
-
-
-postUploadR :: HasGitit master => GH master Html
-postUploadR = do
-  user <- requireUser
-  ((result, widget), enctype) <- lift $ runFormPost $ uploadForm Nothing
-  fs <- filestore <$> getYesod
-  case result of
-       FormSuccess r -> do
-         let fileinfo = uploadFile r
-         let page = textToPage $ uploadWikiname r
-         let auth = Author (gititUserName user) (gititUserEmail user)
-         let comm = T.unpack $ uploadDescription r
-         let path = pathForFile page
-         allfiles <- liftIO $ index fs
-         if path `elem` allfiles && not (uploadOverwrite r)
-            then do
-              setMessageI MsgFileExists
-              showUploadForm enctype widget
-            else do
-              cont <- lift $ fromChunks <$> (fileSource fileinfo $$ consume)
-              res <- liftIO $ try $ save fs path auth comm cont
-              case res of
-                   Left FS.Unchanged -> do
-                                        setMessageI MsgFileUnchanged
-                                        showUploadForm enctype widget
-                   Left e            -> throw e
-                   Right _           -> do
-                                        expireCache path
-                                        redirect $ ViewR page
-       _             -> showUploadForm enctype widget
 
 ----------
 -- Caching
@@ -627,39 +538,6 @@ postExpireR page = do
        pathForPage page >>= expireCache
        expireCache $ pathForFile page
   redirect $ ViewR page
-
-expireCache :: FilePath -> GH master ()
-expireCache path = do
-  conf <- getConfig
-  expireFeed (feed_minutes conf) (path </> "_feed")
-  expireFeed (feed_minutes conf) "_feed"
-  expireCategories
-  cachedir <- cache_dir <$> getConfig
-  let fullpath = cachedir </> path
-  liftIO $ do
-    exists <- doesDirectoryExist fullpath
-    when exists $ removeDirectoryRecursive fullpath
-
-expireCategories :: GH master ()
-expireCategories = do
-  cachedir <- cache_dir <$> getConfig
-  let fullpath = cachedir </> "_categories"
-  liftIO $ do
-    exists <- doesDirectoryExist fullpath
-    when exists $ removeDirectoryRecursive fullpath
-
--- | Expire the cached feed unless it is younger than 'minutes' old.
-expireFeed :: Integer -> FilePath -> GH master ()
-expireFeed minutes path = do
-  cachedir <- cache_dir <$> getConfig
-  let fullpath = cachedir </> path
-  liftIO $ do
-    exists <- doesDirectoryExist fullpath
-    when exists $ do
-      seconds <- getModificationTime fullpath
-      seconds' <- getCurrentTime
-      unless (diffUTCTime seconds' seconds < realToFrac (minutes * 60))
-        $ removeDirectoryRecursive fullpath
 
 -- categories ------------
 
