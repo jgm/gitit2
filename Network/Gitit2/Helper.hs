@@ -1,7 +1,8 @@
 module Network.Gitit2.Helper (
   getConfig,
   getRawContents,
-  pathForPage
+  pathForPage,
+  pageForPath
   ) where
 
 import Control.Applicative ((<$>))
@@ -9,7 +10,7 @@ import Control.Exception (handle, throw)
 import Data.ByteString.Lazy (ByteString)
 import Data.FileStore (FileStoreError(NotFound), retrieve, RevisionId)
 import Network.Gitit2.Foundation (config, filestore, GititConfig, GH, HasGitit, page_extension)
-import Network.Gitit2.Page (pathForPageP, Page)
+import Network.Gitit2.Page (pathForPageP, pageForPathP, Page)
 import Yesod (getYesod, liftIO)
 
 getConfig :: GH master GititConfig
@@ -19,6 +20,11 @@ pathForPage :: Page -> GH master FilePath
 pathForPage p = do
   conf <- getConfig
   return $ pathForPageP (page_extension conf) p
+
+pageForPath :: FilePath -> GH master Page
+pageForPath fp = do
+  conf <- getConfig
+  return $ pageForPathP (page_extension conf) fp
 
 getRawContents :: HasGitit master
                => FilePath

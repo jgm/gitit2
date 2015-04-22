@@ -20,7 +20,7 @@ import qualified Data.Text as T
 import           Data.Yaml
 import           Network.Gitit2.Cache
 import           Network.Gitit2.Import
-import           Network.Gitit2.Page
+import           Network.Gitit2.Page (discussPageFor, isDiscussPage, Page(Page), pageToText, pathForFile, textToPage)
 import           Network.Gitit2.WikiPage (WikiPage(..), contentToWikiPage')
 import           System.FilePath
 import           Text.Blaze.Html hiding (contents)

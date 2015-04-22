@@ -1,7 +1,8 @@
 {-# LANGUAGE CPP #-}
 
 module Network.Gitit2.Import
-    ( module Import
+    ( module Import,
+      Page
     ) where
 
 #if __GLASGOW_HASKELL__ <= 704
@@ -21,6 +22,7 @@ import           Data.Text            as Import (Text)
 
 import           Network.Gitit2.Foundation as Import
 import           Network.Gitit2.Helper as Import
+import           Network.Gitit2.Page (Page)
 -- import           Settings             as Import
 -- import           Settings.Development as Import
 -- import           Settings.StaticFiles as Import
