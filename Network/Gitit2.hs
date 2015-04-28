@@ -19,10 +19,7 @@ module Network.Gitit2 ( GititConfig (..)
                       , Plugin (..)
                       ) where
 
-import           Control.Monad (filterM,  when)
-import           Data.FileStore as FS
-import           Data.List (inits)
-import qualified Data.Text as T
+import           Control.Monad (when)
 import           Network.Gitit2.Cache
 import           Network.Gitit2.Handler.Atom
 import           Network.Gitit2.Handler.Category
@@ -30,6 +27,7 @@ import           Network.Gitit2.Handler.Delete
 import           Network.Gitit2.Handler.Diff
 import           Network.Gitit2.Handler.Edit
 import           Network.Gitit2.Handler.History
+import           Network.Gitit2.Handler.Index
 import           Network.Gitit2.Handler.Random
 import           Network.Gitit2.Handler.Search
 import           Network.Gitit2.Handler.Upload
@@ -89,49 +87,6 @@ postPreviewR =
   -- return HTML for rendered page contents
   -- a javascript gizmo will display this in a modal or something
   -- factor out some of the code from view
-
-getIndexBaseR :: HasGitit master => GH master Html
-getIndexBaseR = getIndexFor []
-
-getIndexR :: HasGitit master => Page -> GH master Html
-getIndexR (Page xs) = getIndexFor xs
-
-getIndexFor :: HasGitit master => [Text] -> GH master Html
-getIndexFor paths = do
-  fs <- filestore <$> getYesod
-  listing <- liftIO $ directory fs $ T.unpack $ T.intercalate "/" paths
-  let isDiscussionPage (FSFile f) = isDiscussPageFile f
-      isDiscussionPage (FSDirectory _) = return False
-  prunedListing <- filterM (fmap not . isDiscussionPage) listing
-  let updirs = inits $ filter (not . T.null) paths
-  toMaster <- getRouteToParent
-  let process (FSFile f) = do
-        Page page <- pageForPath f
-        ispage <- isPageFile f
-        let route = toMaster $ ViewR $ Page (paths ++ page)
-        return (if ispage then ("page" :: Text) else "upload", route, toMessage $ Page page)
-      process (FSDirectory f) = do
-        Page page <- pageForPath f
-        let route = toMaster $ IndexR $ Page (paths ++ page)
-        return ("folder", route, toMessage $ Page page)
-  entries <- mapM process prunedListing
-  makePage pageLayout{ pgName = Nothing } $ [whamlet|
-    <h1 .title>
-      $forall up <- updirs
-        ^{upDir toMaster up}
-    <div .index>
-      <ul>
-        $forall (cls,route,name) <- entries
-          <li .#{cls}>
-            <a href=@{route}>#{name}</a>
-  |]
-
-upDir :: (Route Gitit -> Route master) -> [Text] -> WidgetT master IO ()
-upDir toMaster fs = do
-  let (route, lastdir) = case reverse fs of
-                          (f:_)  -> (IndexR $ Page fs, f)
-                          []     -> (IndexBaseR, "\x2302")
-  [whamlet|<a href=@{toMaster $ route}>#{lastdir}/</a>|]
 
 
 -- TODO:

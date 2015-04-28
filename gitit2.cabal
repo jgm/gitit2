@@ -57,6 +57,7 @@ library
                    Network.Gitit2.Handler.Diff
                    Network.Gitit2.Handler.Edit
                    Network.Gitit2.Handler.History
+                   Network.Gitit2.Handler.Index
                    Network.Gitit2.Handler.Random
                    Network.Gitit2.Handler.Search
                    Network.Gitit2.Handler.Upload
