@@ -26,7 +26,7 @@ import qualified Data.ByteString.Char8 as BSC
 import           Data.ByteString.Lazy.UTF8 (toString)
 import           Data.Char (toLower)
 import           Data.FileStore as FS
-import           Data.List (find, inits, intercalate, nub, sort, sortBy)
+import           Data.List (find, inits, nub, sort, sortBy)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, mapMaybe)
 import           Data.Ord (comparing)
@@ -34,6 +34,7 @@ import qualified Data.Text as T
 import           Data.Time (getCurrentTime, addUTCTime)
 import           Data.Yaml
 import           Network.Gitit2.Cache
+import           Network.Gitit2.Handler.Diff
 import           Network.Gitit2.Handler.History
 import           Network.Gitit2.Handler.Upload
 import           Network.Gitit2.Handler.View
@@ -417,35 +418,6 @@ editForm mbedit = renderDivs $ Edit
         validateNonempty y
           | T.null y = Left MsgValueRequired
           | otherwise = Right y
-
-
-getDiffR :: HasGitit master
-         => RevisionId -> RevisionId -> Page -> GH master Html
-getDiffR fromRev toRev page = do
-  fs <- filestore <$> getYesod
-  pagePath <- pathForPage page
-  let filePath = pathForFile page
-  rawDiff <- liftIO
-             $ catch (diff fs pagePath (Just fromRev) (Just toRev))
-             $ \e -> case e of
-                      FS.NotFound -> diff fs filePath (Just fromRev) (Just toRev)
-                      _           -> throw e
-  makePage pageLayout{ pgName = Just page
-                     , pgTabs = []
-                     , pgSelectedTab = EditTab } $
-   [whamlet|
-     <h1 .title>#{page}
-     <h2 .revision>#{fromRev} &rarr; #{toRev}
-     <pre>
-        $forall t <- rawDiff
-           $case t
-             $of Both xs _
-               <span .unchanged>#{intercalate "\n" xs}
-             $of First xs
-               <span .deleted>#{intercalate "\n" xs}
-             $of Second xs
-               <span .added>#{intercalate "\n" xs}
-     |]
 
 getAtomSiteR :: HasGitit master => GH master RepAtom
 getAtomSiteR = do
