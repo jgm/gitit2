@@ -19,33 +19,26 @@ module Network.Gitit2 ( GititConfig (..)
                       , Plugin (..)
                       ) where
 
-import           Control.Exception (catch, throw)
-import           Control.Monad (filterM, mplus, when)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BSC
+import           Control.Monad (filterM,  when)
 import           Data.ByteString.Lazy.UTF8 (toString)
-import           Data.Char (toLower)
 import           Data.FileStore as FS
-import           Data.List (find, inits, nub, sort, sortBy)
-import qualified Data.Map as M
-import           Data.Maybe (fromMaybe, mapMaybe)
-import           Data.Ord (comparing)
+import           Data.List (inits)
+import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import           Data.Yaml
 import           Network.Gitit2.Cache
 import           Network.Gitit2.Handler.Atom
+import           Network.Gitit2.Handler.Category
 import           Network.Gitit2.Handler.Delete
 import           Network.Gitit2.Handler.Diff
 import           Network.Gitit2.Handler.History
 import           Network.Gitit2.Handler.Random
+import           Network.Gitit2.Handler.Search
 import           Network.Gitit2.Handler.Upload
 import           Network.Gitit2.Handler.View
 import           Network.Gitit2.Import
 import           Network.Gitit2.Page
-import           Network.Gitit2.WikiPage (extractCategories, readPageFormat)
+import           Network.Gitit2.WikiPage (readPageFormat)
 import           System.FilePath
-import           System.IO (Handle, withFile, IOMode(..))
-import           System.IO.Error (isEOFError)
 import           Yesod.Static
 
 instance HasGitit master => YesodSubDispatch Gitit (HandlerT master IO) where
@@ -57,11 +50,6 @@ data HtmlMathMethod = UseMathML | UseMathJax | UsePlainMath
 
 -- pathForFile :: Page -> GH master FilePath
 -- pathForFile p = return $ T.unpack $ toMessage p
-
-allPageFiles :: GH master [FilePath]
-allPageFiles = do
-  fs <- filestore <$> getYesod
-  liftIO (index fs) >>= filterM isPageFile
 
 getGititRobotsR :: GH m RepPlain
 getGititRobotsR = do
@@ -145,90 +133,6 @@ upDir toMaster fs = do
                           (f:_)  -> (IndexR $ Page fs, f)
                           []     -> (IndexBaseR, "\x2302")
   [whamlet|<a href=@{toMaster $ route}>#{lastdir}/</a>|]
-
-postSearchR :: HasGitit master => GH master Html
-postSearchR = do
-  patterns <- lift $ runInputPost $ ireq textField "patterns"
-  searchResults $ T.words patterns
-
-postGoR :: HasGitit master => GH master Html
-postGoR = do
-  gotopage <- lift $ runInputPost $ ireq textField "gotopage"
-  let gotopage' = T.toLower gotopage
-  allPages <- allPageFiles
-  let allPageNames = map (T.pack . dropExtension) allPages
-  let findPage f   = find f allPageNames
-  let exactMatch f = gotopage == f
-  let insensitiveMatch f = gotopage' == T.toLower f
-  let prefixMatch f = gotopage' `T.isPrefixOf` T.toLower f
-  case findPage exactMatch `mplus` findPage insensitiveMatch `mplus`
-        findPage prefixMatch of
-       Just m  -> redirect $ ViewR $ textToPage m
-       Nothing -> searchResults $ T.words gotopage
-
-searchResults :: HasGitit master => [Text] -> GH master Html
-searchResults patterns = do
-  fs <- filestore <$> getYesod
-  matchLines <- if null patterns
-                   then return []
-                   else liftIO $ search fs SearchQuery{
-                                             queryPatterns =
-                                                map T.unpack patterns
-                                           , queryWholeWords = True
-                                           , queryMatchAll = True
-                                           , queryIgnoreCase = True
-                                           }
-  let contentMatches = map matchResourceName matchLines
-  allPages <- allPageFiles
-  let slashToSpace = map (\c -> if c == '/' then ' ' else c)
-  let inPageName pageName' x = x `elem` words
-           (slashToSpace $ dropExtension pageName')
-  let matchesPatterns pageName' = not (null patterns) &&
-       all (inPageName (map toLower pageName'))
-           (map (T.unpack . T.toLower) patterns)
-  let pageNameMatches = filter matchesPatterns allPages
-  let allMatchedFiles = [f | f <- allPages, f `elem` contentMatches
-                                     || f `elem` pageNameMatches ]
-  let matchesInFile f =  mapMaybe (\x -> if matchResourceName x == f
-                                            then Just (matchLine x)
-                                            else Nothing) matchLines
-  let matches = map (\f -> (f, matchesInFile f)) allMatchedFiles
-  let relevance (f, ms) = length ms + if f `elem` pageNameMatches
-                                         then 100
-                                         else 0
-  let matches' = sortBy (flip (comparing relevance)) matches
-  let matches'' = map (\(f,c) -> (textToPage $ T.pack $ dropExtension f, c)) matches'
-  toMaster <- getRouteToParent
-  makePage pageLayout{ pgName = Nothing
-                     , pgTabs = []
-                     , pgSelectedTab = EditTab } $ do
-    toWidget [julius|
-      function toggleMatches(obj) {
-        var pattern = $('#pattern').text();
-        var matches = obj.next('.matches')
-        matches.slideToggle(300);
-        if (obj.html() == '\u25BC') {
-            obj.html('\u25B2');
-          } else {
-            obj.html('\u25BC');
-          };
-        }
-      $(document).ready(function (){
-         $('a.showmatch').attr('onClick', 'toggleMatches($(this));');
-         $('pre.matches').hide();
-         $('a.showmatch').show();
-         });
-    |]
-    [whamlet|
-      <h1>#{T.unwords patterns}
-      <ol>
-        $forall (page, cont) <- matches''
-          <li>
-            <a href=@{toMaster $ ViewR page}>#{page}
-            $if not (null cont)
-               <a href="#" .showmatch>&#x25BC;
-            <pre .matches>#{unlines cont}
-    |]
 
 getEditR :: HasGitit master => Page -> GH master Html
 getEditR page = do
@@ -387,91 +291,3 @@ postExpireR page = do
        pathForPage page >>= expireCache
        expireCache $ pathForFile page
   redirect $ ViewR page
-
--- categories ------------
-
--- NOTE:  The current implementation of of categories does not go via the
--- filestore abstraction.  That is bad, but can only be fixed if we add
--- more sophisticated searching options to filestore.
-
-getCategoriesR :: HasGitit master => GH master Html
-getCategoriesR = do
-  tryCache "_categories"
-  conf <- getConfig
-  toMaster <- getRouteToParent
-  let repopath = repository_path conf
-  allpages <- map (repopath </>) <$> allPageFiles
-  allcategories <- liftIO $ nub . sort . concat <$> mapM readCategories allpages
-  caching "_categories" $
-    makePage pageLayout{ pgName = Nothing
-                       , pgTabs = []
-                       , pgSelectedTab = EditTab }
-    [whamlet|
-      <h1>_{MsgCategories}</h1>
-      <ul>
-        $forall category <- allcategories
-          <li><a href=@{toMaster $ CategoryR category}>#{category}
-    |]
-
-getCategoryR :: HasGitit master => Text -> GH master Html
-getCategoryR category = do
-  let cachepage = "_categories" </> T.unpack category
-  tryCache cachepage
-  conf <- getConfig
-  toMaster <- getRouteToParent
-  let repopath = repository_path conf
-  allpages <- allPageFiles
-  let hasCategory pg = elem category <$> readCategories (repopath </> pg)
-  matchingpages <- mapM pageForPath =<< (sort <$> filterM (liftIO . hasCategory) allpages)
-  caching cachepage $
-    makePage pageLayout{ pgName = Nothing
-                       , pgTabs = []
-                       , pgSelectedTab = EditTab }
-    [whamlet|
-      <h1>_{MsgCategory}: #{category}</h1>
-      <ul.index>
-        $forall page <- matchingpages
-          <li .page><a href=@{toMaster $ ViewR page}>#{page}
-    |]
-
--- | Examine metadata at beginning of file, returning list of categories.
--- Note:  Must be strict.
-readCategories :: FilePath -> IO [Text]
-readCategories f = do
-  hdr <- getHeader f
-  return $ if BS.null hdr
-     then []
-     else extractCategories $ fromMaybe M.empty $ decode hdr
-
-getHeader :: FilePath -> IO BS.ByteString
-getHeader f =
-  withFile f ReadMode $ \h ->
-    catch (do fl <- BS.hGetLine h
-              if dashline fl
-                 then BSC.unlines <$> hGetLinesTill h dotline
-                 else return BS.empty)
-       (\e -> if isEOFError e then return BS.empty else throw e)
-
-dashline :: BS.ByteString -> Bool
-dashline x =
-  case BSC.unpack x of
-       ('-':'-':'-':xs) | all (==' ') xs -> True
-       _ -> False
-
-dotline :: BS.ByteString -> Bool
-dotline x =
-  case BSC.unpack x of
-       ('.':'.':'.':xs) | all (==' ') xs -> True
-       _ -> False
-
-hGetLinesTill :: Handle -> (BS.ByteString -> Bool) -> IO [BS.ByteString]
-hGetLinesTill h end = do
-  next <- BS.hGetLine h
-  if end next
-     then return []
-     else do
-       rest <- hGetLinesTill h end
-       return (next:rest)
-
-
-

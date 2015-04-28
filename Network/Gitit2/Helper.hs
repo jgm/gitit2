@@ -1,4 +1,5 @@
 module Network.Gitit2.Helper (
+  allPageFiles,
   getConfig,
   getRawContents,
   isPageFile,
@@ -15,6 +16,8 @@ import Network.Gitit2.Foundation (config, filestore, GititConfig, GH, HasGitit, 
 import Network.Gitit2.Page (pathForPageP, pageForPathP, Page)
 import System.FilePath (takeExtension)
 import Yesod (getYesod, liftIO)
+import Data.FileStore (index)
+import Control.Monad (filterM)
 
 getConfig :: GH master GititConfig
 getConfig = config <$> getYesod
@@ -46,3 +49,8 @@ isPageFile f = do
 isDiscussPageFile :: FilePath -> GH master Bool
 isDiscussPageFile ('@':xs) = isPageFile xs
 isDiscussPageFile _ = return False
+
+allPageFiles :: GH master [FilePath]
+allPageFiles = do
+  fs <- filestore <$> getYesod
+  liftIO (index fs) >>= filterM isPageFile

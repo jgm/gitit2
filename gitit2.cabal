@@ -52,10 +52,12 @@ library
 
     other-modules: Network.Gitit2.Cache
                    Network.Gitit2.Handler.Atom
+                   Network.Gitit2.Handler.Category
                    Network.Gitit2.Handler.Delete
                    Network.Gitit2.Handler.Diff
                    Network.Gitit2.Handler.History
                    Network.Gitit2.Handler.Random
+                   Network.Gitit2.Handler.Search
                    Network.Gitit2.Handler.Upload
                    Network.Gitit2.Handler.View
                    Network.Gitit2.Helper
