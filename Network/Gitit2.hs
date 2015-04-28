@@ -20,14 +20,11 @@ module Network.Gitit2 ( GititConfig (..)
                       ) where
 
 import           Control.Exception (catch, throw, try)
-import           Control.Monad (filterM, mplus, when, unless)
+import           Control.Monad (filterM, mplus, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
-import           Data.ByteString.Lazy (fromChunks)
 import           Data.ByteString.Lazy.UTF8 (toString)
 import           Data.Char (toLower)
-import           Data.Conduit (($$))
-import           Data.Conduit.List (consume)
 import           Data.FileStore as FS
 import           Data.List (find, inits, intercalate, nub, sort, sortBy)
 import qualified Data.Map as M
@@ -35,7 +32,6 @@ import           Data.Maybe (fromMaybe, mapMaybe)
 import           Data.Ord (comparing)
 import qualified Data.Text as T
 import           Data.Time (getCurrentTime, addUTCTime)
-import           Data.Time.Clock (diffUTCTime)
 import           Data.Yaml
 import           Network.Gitit2.Cache
 import           Network.Gitit2.Handler.History
@@ -44,7 +40,6 @@ import           Network.Gitit2.Handler.View
 import           Network.Gitit2.Import
 import           Network.Gitit2.Page
 import           Network.Gitit2.WikiPage (extractCategories, readPageFormat)
-import           System.Directory
 import           System.FilePath
 import           System.IO (Handle, withFile, IOMode(..))
 import           System.IO.Error (isEOFError)
