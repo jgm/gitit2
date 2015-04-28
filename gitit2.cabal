@@ -51,6 +51,7 @@ library
                      Network.Gitit2.Page
 
     other-modules: Network.Gitit2.Cache
+                   Network.Gitit2.Handler.Delete
                    Network.Gitit2.Handler.Diff
                    Network.Gitit2.Handler.History
                    Network.Gitit2.Handler.Random

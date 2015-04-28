@@ -19,7 +19,7 @@ module Network.Gitit2 ( GititConfig (..)
                       , Plugin (..)
                       ) where
 
-import           Control.Exception (catch, throw, try)
+import           Control.Exception (catch, throw)
 import           Control.Monad (filterM, mplus, when)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -34,6 +34,7 @@ import qualified Data.Text as T
 import           Data.Time (getCurrentTime, addUTCTime)
 import           Data.Yaml
 import           Network.Gitit2.Cache
+import           Network.Gitit2.Handler.Delete
 import           Network.Gitit2.Handler.Diff
 import           Network.Gitit2.Handler.History
 import           Network.Gitit2.Handler.Random
@@ -95,47 +96,6 @@ getRawR page = do
               Nothing   -> notFound
               Just cont -> return $ RepPlain $ toContent cont
        Just cont -> return $ RepPlain $ toContent cont
-
-getDeleteR :: HasGitit master => Page -> GH master Html
-getDeleteR page = do
-  requireUser
-  fs <- filestore <$> getYesod
-  path <- pathForPage page
-  pageTest <- liftIO $ try $ latest fs path
-  fileToDelete <- case pageTest of
-                       Right _        -> return path
-                       Left  FS.NotFound -> do
-                         let path' = pathForFile page
-                         fileTest <- liftIO $ try $ latest fs path'
-                         case fileTest of
-                              Right _     -> return path' -- a file
-                              Left FS.NotFound  -> fail (show FS.NotFound)
-                              Left e      -> fail (show e)
-                       Left e        -> fail (show e)
-  toMaster <- getRouteToParent
-  makePage pageLayout{ pgName = Just page
-                     , pgTabs = []
-                     }
-    [whamlet|
-      <h1>#{page}</h1>
-      <div #deleteform>
-        <form method=post action=@{toMaster $ DeleteR page}>
-          <p>_{MsgConfirmDelete page}
-          <input type=text class=hidden name=fileToDelete value=#{fileToDelete}>
-          <input type=submit value=_{MsgDelete}>
-    |]
-
-postDeleteR :: HasGitit master => Page -> GH master Html
-postDeleteR page = do
-  user <- requireUser
-  fs <- filestore <$> getYesod
-  mr <- getMessageRender
-  fileToDelete <- lift $ runInputPost $ ireq textField "fileToDelete"
-  liftIO $ FS.delete fs (T.unpack fileToDelete)
-            (Author (gititUserName user) (gititUserEmail user))
-            (T.unpack $ mr $ MsgDeleted page)
-  setMessageI $ MsgDeleted page
-  redirect HomeR
 
 postPreviewR :: HasGitit master => GH master Html
 postPreviewR =
