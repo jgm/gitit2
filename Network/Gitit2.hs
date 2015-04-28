@@ -36,6 +36,7 @@ import           Data.Yaml
 import           Network.Gitit2.Cache
 import           Network.Gitit2.Handler.Diff
 import           Network.Gitit2.Handler.History
+import           Network.Gitit2.Handler.Random
 import           Network.Gitit2.Handler.Upload
 import           Network.Gitit2.Handler.View
 import           Network.Gitit2.Import
@@ -44,7 +45,6 @@ import           Network.Gitit2.WikiPage (extractCategories, readPageFormat)
 import           System.FilePath
 import           System.IO (Handle, withFile, IOMode(..))
 import           System.IO.Error (isEOFError)
-import           System.Random (randomRIO)
 import           Yesod.AtomFeed
 import           Yesod.Static
 
@@ -58,19 +58,10 @@ data HtmlMathMethod = UseMathML | UseMathJax | UsePlainMath
 -- pathForFile :: Page -> GH master FilePath
 -- pathForFile p = return $ T.unpack $ toMessage p
 
-isPageFile :: FilePath -> GH master Bool
-isPageFile f = do
-  conf <- getConfig
-  return $ takeExtension f == page_extension conf
-
 allPageFiles :: GH master [FilePath]
 allPageFiles = do
   fs <- filestore <$> getYesod
   liftIO (index fs) >>= filterM isPageFile
-
-isDiscussPageFile :: FilePath -> GH master Bool
-isDiscussPageFile ('@':xs) = isPageFile xs
-isDiscussPageFile _ = return False
 
 getGititRobotsR :: GH m RepPlain
 getGititRobotsR = do
@@ -91,16 +82,6 @@ getHelpR :: HasGitit master => GH master Html
 getHelpR = do
   conf <- getConfig
   getViewR $ textToPage $ help_page conf
-
-getRandomR :: HasGitit master => GH master Html
-getRandomR = do
-  fs <- filestore <$> getYesod
-  files <- liftIO $ index fs
-  pages <- mapM pageForPath =<< filterM (fmap not . isDiscussPageFile)
-                            =<<filterM isPageFile files
-  pagenum <- liftIO $ randomRIO (0, length pages - 1)
-  let thepage = pages !! pagenum
-  redirect $ ViewR thepage
 
 getRawR :: HasGitit master => Page -> GH master RepPlain
 getRawR page = do

@@ -9,10 +9,8 @@ import           Control.Exception (try)
 import           Data.ByteString.Lazy (fromChunks)
 import           Data.Conduit (($$))
 import           Data.Conduit.List (consume)
-import           Data.FileStore (Author(Author))
-import           Data.FileStore (index)
-import           Data.FileStore (save)
-import           Data.FileStore as FS
+import           Data.FileStore (Author(Author), index, save)
+import qualified Data.FileStore as FS
 import qualified Data.Text as T
 import           Network.Gitit2.Cache (expireCache)
 import           Network.Gitit2.Import

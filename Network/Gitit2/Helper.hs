@@ -1,6 +1,8 @@
 module Network.Gitit2.Helper (
   getConfig,
   getRawContents,
+  isPageFile,
+  isDiscussPageFile,
   pathForPage,
   pageForPath
   ) where
@@ -11,6 +13,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.FileStore (FileStoreError(NotFound), retrieve, RevisionId)
 import Network.Gitit2.Foundation (config, filestore, GititConfig, GH, HasGitit, page_extension)
 import Network.Gitit2.Page (pathForPageP, pageForPathP, Page)
+import System.FilePath (takeExtension)
 import Yesod (getYesod, liftIO)
 
 getConfig :: GH master GititConfig
@@ -34,3 +37,12 @@ getRawContents path rev = do
   fs <- filestore <$> getYesod
   liftIO $ handle (\e -> if e == NotFound then return Nothing else throw e)
          $ Just <$> retrieve fs path rev
+
+isPageFile :: FilePath -> GH master Bool
+isPageFile f = do
+  conf <- getConfig
+  return $ takeExtension f == page_extension conf
+
+isDiscussPageFile :: FilePath -> GH master Bool
+isDiscussPageFile ('@':xs) = isPageFile xs
+isDiscussPageFile _ = return False
