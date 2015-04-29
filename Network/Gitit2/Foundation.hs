@@ -103,5 +103,3 @@ pageLayout = PageLayout{
 -- Create routes.
 
 mkYesodSubData "Gitit" $(parseRoutesFile "Network/Gitit2/config/routes")
-
-

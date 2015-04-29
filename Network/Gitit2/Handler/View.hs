@@ -4,12 +4,13 @@ module Network.Gitit2.Handler.View (
   getViewR,
   getExportR,
   getRevisionR,
-  makeDefaultPage
+  makeDefaultPage,
+  postPreviewR
   ) where
 
 import           Control.Exception (throw)
 import           Control.Monad (when, foldM)
-import           Data.ByteString.Lazy (ByteString)
+import           Data.ByteString.Lazy (ByteString, fromStrict)
 import           Data.ByteString.Lazy.UTF8 (toString)
 import           Data.FileStore as FS
 import           Data.List (isPrefixOf)
@@ -17,6 +18,7 @@ import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import           Data.Text.Encoding (encodeUtf8)
 import           Data.Yaml
 import           Network.Gitit2.Cache
 import           Network.Gitit2.Import
@@ -62,6 +64,12 @@ getExportR format page = do
 
 getRevisionR :: HasGitit master => RevisionId -> Page -> GH master Html
 getRevisionR rev = view (Just rev)
+
+postPreviewR :: HasGitit master => Page -> GH master Html
+postPreviewR page = do
+  contents <- lift $ runInputPost $ ireq textField "contents"
+  wikipage <- contentsToWikiPage page (fromStrict $ encodeUtf8 contents)
+  pageToHtml wikipage
 
 setFilename :: Text -> HandlerT sub (HandlerT master IO) ()
 setFilename fname = addHeader "Content-Disposition"
@@ -286,4 +294,3 @@ getMimeType fp = do
   mimeTypes <- mime_types <$> getConfig
   return $ fromMaybe "application/octet-stream"
          $ M.lookup (drop 1 $ takeExtension fp) mimeTypes
-
