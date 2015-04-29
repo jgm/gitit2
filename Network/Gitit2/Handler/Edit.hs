@@ -76,12 +76,27 @@ showEditForm page route enctype form =
   makePage pageLayout{ pgName = Just page
                      , pgTabs = [EditTab]
                      , pgSelectedTab = EditTab }
+  $ do
+    toWidget [julius|
+     function updatePreviewPane() {
+       var url = location.pathname.replace(/_edit\//,"_preview/");
+       $.post(
+           url,
+           {"contents" : $("#editpane").attr("value")},
+           function(data) {
+             $('#previewpane').html(data);
+             // TODO: Process any mathematics (we only use mathjax as of 2015/04/07)
+           },
+           "html");
+     };   |]
     [whamlet|
       <h1>#{page}</h1>
       <div #editform>
         <form method=post action=@{route} enctype=#{enctype}>
           ^{form}
           <input type=submit>
+          <input type=button onclick="updatePreviewPane()" value="Preview">
+     <div #previewpane>
     |]
 
 postUpdateR :: HasGitit master
@@ -135,6 +150,7 @@ editForm :: HasGitit master
          -> MForm (HandlerT master IO) (FormResult Edit, WidgetT master IO ())
 editForm mbedit = renderDivs $ Edit
     <$> areq textareaField (fieldSettingsLabel MsgPageSource)
+            {fsId = Just "editpane"}
            (editContents <$> mbedit)
     <*> areq commentField (fieldSettingsLabel MsgChangeDescription)
            (editComment <$> mbedit)

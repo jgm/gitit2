@@ -81,14 +81,6 @@ getRawR page = do
               Just cont -> return $ RepPlain $ toContent cont
        Just cont -> return $ RepPlain $ toContent cont
 
-postPreviewR :: HasGitit master => GH master Html
-postPreviewR =
-  undefined -- TODO: get raw contents and settings from post params
-  -- return HTML for rendered page contents
-  -- a javascript gizmo will display this in a modal or something
-  -- factor out some of the code from view
-
-
 -- TODO:
 -- fix mime types
 -- handle math in html formats
