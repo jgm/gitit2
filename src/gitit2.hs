@@ -25,6 +25,8 @@ import Config
 import Error
 import ArgParser
 
+import Network.Gitit2.WikiPage (PageFormat(..), wpContent)
+
 data Master = Master { settings :: FoundationSettings
                      , getGitit    :: Gitit
                      , maxUploadSize :: Int
@@ -56,7 +58,7 @@ instance Yesod Master where
         });
         |]
       contents
-    withUrlRenderer [hamlet|
+    giveUrlRenderer [hamlet|
         $doctype 5
         <html>
           <head>
@@ -111,7 +113,7 @@ instance HasGitit Master where
 getUserR :: Handler Html
 getUserR = do
   maid <- maybeAuthId
-  withUrlRenderer [hamlet|
+  giveUrlRenderer [hamlet|
     $maybe aid <- maid
       <p><a href=@{AuthR LogoutR}>Logout #{aid}
     $nothing
@@ -121,7 +123,7 @@ getUserR = do
 getMessagesR :: Handler Html
 getMessagesR = do
   mmsg <- getMessage
-  withUrlRenderer [hamlet|
+  giveUrlRenderer [hamlet|
     $maybe msg  <- mmsg
       <p.message>#{msg}
     |]
