@@ -168,7 +168,7 @@ getExportFormats :: GH master [(Text, (Text, WikiPage -> GH master (ContentType,
 getExportFormats = do
   conf <- getConfig
   let repopath = repository_path conf
-  let userdata = pandoc_user_data conf
+  -- let userdata = pandoc_user_data conf
   let selfcontained = toSelfContained repopath
   return $
     [ ("Asciidoc", (".txt", basicExport "asciidoc" typePlain $ pureWriter writeAsciiDoc))
