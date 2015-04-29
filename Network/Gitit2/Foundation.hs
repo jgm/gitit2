@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE FlexibleInstances, ViewPatterns #-}
 
 module Network.Gitit2.Foundation where
 
