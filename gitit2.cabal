@@ -13,9 +13,6 @@ stability:         Experimental
 cabal-version:     >= 1.8
 build-type:        Simple
 homepage:          http://gitit.net
-Source-repository head
-  type:            git
-  location:        git://github.com/jgm/gitit2.git
 data-files:        README.markdown
                    messages/en.msg
                    static/favicon.ico
@@ -42,6 +39,9 @@ data-files:        README.markdown
                    data/markup.HTML
                    data/markup.LaTeX
                    data/post-update
+Source-repository head
+  type:            git
+  location:        git://github.com/jgm/gitit2.git
 
 flag executable
   description:   Build the gitit executable.
