@@ -13,10 +13,11 @@ matrix:
 
 # Note: the distinction between `before_install` and `install` is not important.
 before_install:
- - export PATH=/opt/ghc/$GHCVER/bin:$PATH
+ - export PATH=/opt/ghc/$GHCVER/bin:$HOME/.cabal/bin:$PATH
 
 install:
  - cabal-$CABALVER update
+ - cabal-$CABALVER install alex happy
  - cabal-$CABALVER install $JOPTS --only-dependencies --enable-tests --constrain "zlib < 0.6"
 
 # Here starts the actual work to be performed for the package under test; any command which exits with a non-zero exit code causes the build to fail.
