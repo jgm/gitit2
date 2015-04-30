@@ -13,6 +13,9 @@ stability:         Experimental
 cabal-version:     >= 1.8
 build-type:        Simple
 homepage:          http://gitit.net
+Source-repository head
+  type:            git
+  location:        git://github.com/jgm/gitit2.git
 data-files:        README.markdown
                    messages/en.msg
                    static/favicon.ico
