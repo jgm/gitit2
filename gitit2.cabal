@@ -117,7 +117,7 @@ library
                  , pandoc-types                  >= 1.12       && < 1.13
                  , HTTP                          >= 4000.2     && < 4000.3
 
-    ghc-options:  -Wall -threaded -fno-warn-unused-do-bind
+    ghc-options:  -Wall -fno-warn-unused-do-bind
 
 executable gitit2
     main-is:    gitit2.hs
