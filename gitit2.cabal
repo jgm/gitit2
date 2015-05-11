@@ -47,6 +47,11 @@ flag executable
   description:   Build the gitit executable.
   default:       True
 
+flag debian-jessie
+  description: Use build dependencies available in Debian Jessie
+  default: False
+  manual: True
+
 library
     exposed-modules: Network.Gitit2
                      Network.Gitit2.Foundation
@@ -90,10 +95,6 @@ library
                  , text                          >= 0.11       && < 1.3
                  , template-haskell
                  , hamlet                        >= 1.1        && < 1.3
-                 , shakespeare                   >= 2.0        && < 2.1
-                 , shakespeare-css               >= 1.0        && < 1.2
-                 , shakespeare-js                >= 1.2        && < 1.4
-                 , shakespeare-text              >= 1.0        && < 1.2
                  , hjsmin                        >= 0.1        && < 0.2
                  , monad-control                 >= 0.3        && < 1.1
                  , wai-extra                     >= 2.1        && < 3.1
@@ -119,6 +120,12 @@ library
                  , blaze-builder                 >= 0.3        && < 0.5
                  , pandoc-types                  >= 1.12       && < 1.13
                  , HTTP                          >= 4000.2     && < 4000.3
+    if flag(debian-jessie)
+      Build-Depends: shakespeare-css               >= 1.0        && < 1.2
+                   , shakespeare-js                >= 1.2        && < 1.4
+                   , shakespeare-text              >= 1.0        && < 1.2
+    else
+      Build-Depends: shakespeare                   >= 2.0        && < 2.1
 
     ghc-options:  -Wall -fno-warn-unused-do-bind
 
