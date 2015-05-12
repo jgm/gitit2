@@ -69,7 +69,7 @@ contentToWikiPage' title contents converter defaultFormat =
            , wpFormat      = format
            , wpTOC         = toc
            , wpLHS         = lhs
-           , wpTitle       = toList $ text $ T.unpack $ title
+           , wpTitle       = toList $ text $ T.unpack title
            , wpCategories  = extractCategories metadata
            , wpMetadata    = metadata
            , wpCacheable   = True
@@ -109,7 +109,7 @@ contentToWikiPage' title contents converter defaultFormat =
     convertWikiLinks x = x
 
     addWikiLinks :: Pandoc -> Pandoc
-    addWikiLinks = bottomUp (convertWikiLinks)
+    addWikiLinks = bottomUp convertWikiLinks
 
     stripHeader :: [ByteString] -> (ByteString,ByteString)
     stripHeader (x:xs)

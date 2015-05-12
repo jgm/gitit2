@@ -10,14 +10,13 @@ module Network.Gitit2.Helper (
 
 import Control.Applicative ((<$>))
 import Control.Exception (handle, throw)
+import Control.Monad (filterM)
 import Data.ByteString.Lazy (ByteString)
-import Data.FileStore (FileStoreError(NotFound), retrieve, RevisionId)
+import Data.FileStore (index, FileStoreError(NotFound), retrieve, RevisionId)
 import Network.Gitit2.Foundation (config, filestore, GititConfig, GH, HasGitit, page_extension)
 import Network.Gitit2.Page (pathForPageP, pageForPathP, Page)
 import System.FilePath (takeExtension)
 import Yesod (getYesod, liftIO)
-import Data.FileStore (index)
-import Control.Monad (filterM)
 
 getConfig :: GH master GititConfig
 getConfig = config <$> getYesod

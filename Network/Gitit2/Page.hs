@@ -1,15 +1,12 @@
 module Network.Gitit2.Page
        where
 
-import Yesod (PathMultiPiece, toMessage, ToMessage)
-import Text.Blaze (toMarkup, ToMarkup)
+import           Data.Monoid ((<>))
+import           Data.Text (Text)
 import qualified Data.Text as T
-import Data.Text (Text)
-import Yesod (toPathMultiPiece)
-import Yesod (fromPathMultiPiece)
-import Data.Monoid ((<>))
-import System.FilePath (takeExtension)
-import System.FilePath (dropExtension)
+import           System.FilePath (dropExtension, takeExtension)
+import           Text.Blaze (toMarkup, ToMarkup)
+import           Yesod (fromPathMultiPiece, PathMultiPiece, toMessage, ToMessage, toPathMultiPiece)
 
 -- | Path to a wiki page.  Page and page components can't begin with '_'.
 data Page = Page [Text] deriving (Show, Read, Eq)
