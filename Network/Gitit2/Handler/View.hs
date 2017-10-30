@@ -10,15 +10,14 @@ module Network.Gitit2.Handler.View (
 
 import           Control.Exception (throw)
 import           Control.Monad (when, foldM)
-import           Data.ByteString.Lazy (ByteString, fromStrict)
+import           Data.ByteString.Lazy (ByteString, fromStrict, toStrict)
 import           Data.ByteString.Lazy.UTF8 (toString)
 import           Data.FileStore as FS
 import           Data.List (isPrefixOf)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
-import qualified Data.Set as Set
 import qualified Data.Text as T
-import           Data.Text.Encoding (encodeUtf8)
+import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import           Data.Yaml
 import           Network.Gitit2.Cache
 import           Network.Gitit2.Import
@@ -26,13 +25,12 @@ import           Network.Gitit2.Page (discussPageFor, isDiscussPage, Page(Page),
 import           Network.Gitit2.WikiPage (WikiPage(..), contentToWikiPage')
 import           System.FilePath
 import           Text.Blaze.Html hiding (contents)
-import           Text.Highlighting.Kate
+import           Skylighting
 import           Text.Julius (juliusFile)
 import           Text.Pandoc
 import           Text.Pandoc.PDF (makePDF)
 import           Text.Pandoc.SelfContained (makeSelfContained)
-import           Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
-import           Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
+import           Text.Pandoc.Shared (stringify)
 import           Yesod.AtomFeed
 import           Yesod.Static
 
@@ -79,7 +77,7 @@ makeDefaultPage :: HasGitit master => PageLayout -> WidgetT master IO () -> GH m
 makeDefaultPage layout content = do
   toMaster <- getRouteToParent
   let logoRoute = staticR $ StaticRoute ["img","logo.png"] []
-  let feedRoute = staticR $ StaticRoute ["img","icons","feed.png"] []
+  -- let feedRoute = staticR $ StaticRoute ["img","icons","feed.png"] []
 
   let searchRoute = toMaster SearchR
   let goRoute = toMaster GoR
@@ -160,7 +158,7 @@ contentsToWikiPage page contents = do
 
 isSourceFile :: FilePath -> GH master Bool
 isSourceFile path' = do
-  let langs = languagesByFilename $ takeFileName path'
+  let langs = syntaxesByFilename defaultSyntaxMap (takeFileName path')
   return $ not (null langs || takeExtension path' == ".svg")
                          -- allow svg to be served as image
 
@@ -168,70 +166,69 @@ getExportFormats :: GH master [(Text, (Text, WikiPage -> GH master (ContentType,
 getExportFormats = do
   conf <- getConfig
   let repopath = repository_path conf
-  -- let userdata = pandoc_user_data conf
-  let selfcontained = toSelfContained repopath
+  let selfcontained f = \opt pdc -> do
+        setResourcePath [repopath]
+        setUserDataDir (pandoc_user_data conf)
+        res <- f opt pdc
+        T.pack <$> makeSelfContained (T.unpack res)
   return $
     [ ("Asciidoc", (".txt", basicExport "asciidoc" typePlain $ pureWriter writeAsciiDoc))
     , ("Beamer", (".tex", basicExport "beamer" "application/x-latex" $ pureWriter writeLaTeX))
     , ("ConTeXt", (".tex", basicExport "context" "application/x-context" $ pureWriter writeConTeXt))
-    , ("DocBook", (".xml", basicExport "docbook" "application/docbook+xml" $ pureWriter writeDocbook))
-    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts -> selfcontained opts .
-                writeHtmlString opts{ writerSlideVariant = DZSlides
-                              , writerHtml5 = True }))
-    , ("EPUB", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts ->
-                 inDirectory repopath . writeEPUB opts))
+    , ("DocBook v4", (".xml", basicExport "docbook" "application/docbook+xml" $ pureWriter writeDocbook4))
+    , ("DocBook v5", (".xml", basicExport "docbook" "application/docbook+xml" $ pureWriter writeDocbook5))
+    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ selfcontained writeDZSlides))
+    , ("EPUB v2", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts d -> setResourcePath [repopath] >> writeEPUB2 opts d))
+    , ("EPUB v3", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts d -> setResourcePath [repopath] >> writeEPUB3 opts d))
     , ("Groff man", (".1", basicExport "man" typePlain $ pureWriter writeMan))
-    , ("HTML", (".html", basicExport "html" typeHtml $ \opts -> selfcontained opts . writeHtmlString opts))
-    , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
-                   selfcontained opts . writeHtmlString opts{ writerHtml5 = True }))
+    , ("HTML4", (".html", basicExport "html" typeHtml $ selfcontained $ pureWriter writeHtml4String))
+    , ("HTML5", (".html", basicExport "html5" typeHtml $ selfcontained $ pureWriter writeHtml5String))
     , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" $ pureWriter writeLaTeX))
     , ("Markdown", (".txt", basicExport "markdown" typePlain $ pureWriter writeMarkdown))
     , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain $ pureWriter writeMediaWiki))
     , ("ODT", (".odt", basicExport "opendocument" "application/vnd.oasis.opendocument.text"
-             $ \opts -> inDirectory repopath . writeODT opts))
+             $ \opts d -> setResourcePath [repopath] >> writeODT opts d))
     , ("OpenDocument", (".xml", basicExport "opendocument" "application/vnd.oasis.opendocument.text"
                    $ pureWriter writeOpenDocument))
     , ("Org-mode", (".org", basicExport "org" typePlain $ pureWriter writeOrg)) ] ++
     [ ("PDF", (".pdf", basicExport "latex" "application/pdf" $ \opts d ->
-                   inDirectory repopath $ makePDF (fromMaybe "pdflatex" $
-                     latex_engine conf) writeLaTeX opts d >>= \res ->
-                       case res of
-                         Left e    -> error $ "Could not produce PDF: " ++ toString e
-                         Right pdf -> return pdf)) | isJust (latex_engine conf) ] ++
+                         do setResourcePath [repopath]
+                            res <- makePDF (fromMaybe "pdflatex" $
+                                    latex_engine conf) []
+                                    writeLaTeX opts d
+                            case res of
+                                 Left e -> fail (toString e)
+                                 Right r -> return r
+                        )) | isJust (latex_engine conf) ] ++
     [ ("Plain text", (".txt", basicExport "plain" typePlain $ pureWriter writePlain))
     , ("reStructuredText", (".txt", basicExport "rst" typePlain $ pureWriter writeRST))
-    , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTFWithEmbeddedImages))
+    , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTF))
     , ("Textile", (".txt", basicExport "textile" typePlain $ pureWriter writeTextile))
-    , ("S5", (".html", basicExport "s5" typeHtml $ \opts ->
-                selfcontained opts . writeHtmlString opts{ writerSlideVariant = S5Slides }))
-    , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
-                selfcontained opts . writeHtmlString opts{ writerSlideVariant = SlidySlides }))
+    , ("S5", (".html", basicExport "s5" typeHtml $ selfcontained $ pureWriter  writeS5))
+    , ("Slidy", (".html", basicExport "slidy" typeHtml $ selfcontained $ pureWriter writeSlidy))
     , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" $ pureWriter writeTexinfo))
     , ("Word docx", (".docx", basicExport "docx"
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            $ \opts -> inDirectory repopath . writeDocx opts))
+            $ \opts d -> setResourcePath [repopath] >> writeDocx opts d))
     ]
 
 pageToHtml :: HasGitit master => WikiPage -> GH master Html
-pageToHtml wikiPage =
-  return $ writeHtml def{
-               writerWrapText = False
-             , writerHtml5 = True
-             , writerHighlight = True
-             , writerHTMLMathMethod = MathML Nothing
+pageToHtml wikiPage = do
+  let res = runPure $ writeHtml5 def{
+               writerWrapText = WrapNone
+             , writerHighlightStyle = Just pygments
+             , writerHTMLMathMethod = MathML
              } $ Pandoc nullMeta (wpContent wikiPage)
+  case res of
+       Left err -> throw err
+       Right r  -> return r
 
-toSelfContained :: FilePath -> WriterOptions -> String -> IO String
-#if MIN_VERSION_pandoc(1,13,0)
-toSelfContained repopath w cont =
-  inDirectory repopath $ makeSelfContained w cont
-#else
-toSelfContained repopath w cont =
-  inDirectory repopath $ makeSelfContained (writerSourceURL w) cont
-#endif
-
-pureWriter :: (WriterOptions -> Pandoc -> String) -> WriterOptions -> Pandoc -> IO String
-pureWriter w opts d = return $ w opts d
+pureWriter :: (WriterOptions -> Pandoc -> PandocPure Text)
+           -> WriterOptions -> Pandoc -> PandocIO Text
+pureWriter w opts d =
+  case runPure (w opts d) of
+       Left e  -> throw e
+       Right x -> return x
 
 toWikiPage :: HasGitit master => Html -> GH master (WidgetT master IO ())
 toWikiPage rendered = do
@@ -241,14 +238,11 @@ toWikiPage rendered = do
     toWidget rendered
 
 basicExport :: ToContent a
-            => String -> ContentType -> (WriterOptions -> Pandoc -> IO a)
+            => String -> ContentType
+            -> (WriterOptions -> Pandoc -> PandocIO a)
             -> WikiPage -> GH master (ContentType, Content)
 basicExport templ contentType writer wikiPage = do
   conf <- getConfig
-  template' <- liftIO $ getDefaultTemplate (pandoc_user_data conf) templ
-  template <- case template' of
-                     Right t  -> return t
-                     Left e   -> throw e
   let metadataToVar :: (Text, Value) -> Maybe (String, String)
       metadataToVar (k, String v) = Just (T.unpack k, T.unpack v)
       metadataToVar (k, Bool v)   = Just (T.unpack k, if v then "yes" else "no")
@@ -257,25 +251,36 @@ basicExport templ contentType writer wikiPage = do
   let vars = mapMaybe metadataToVar $ M.toList $ wpMetadata wikiPage
   dzcore <- if templ == "dzslides"
                 then liftIO $ do
-                  dztempl <- readDataFileUTF8 (pandoc_user_data conf)
-                             $ "dzslides" </> "template.html"
+                  res <- runIO (do setUserDataDir $ pandoc_user_data conf
+                                   getDefaultTemplate "dzslides")
+                  dztempl <- case res of
+                                  Left e  -> throw e
+                                  Right r -> return r
                   return $ unlines
                       $ dropWhile (not . isPrefixOf "<!-- {{{{ dzslides core")
                       $ lines dztempl
                 else return ""
-  rendered <- liftIO
-              $ writer def{
-                         writerTemplate = template
-                       , writerSourceURL = Just $ repository_path conf
-                       , writerStandalone = True
-                       , writerExtensions = if wpLHS wikiPage
-                                               then Set.insert Ext_literate_haskell pandocExtensions
-                                               else pandocExtensions
-                       , writerTableOfContents = wpTOC wikiPage
-                       , writerHTMLMathMethod = MathML Nothing
-                       , writerVariables = ("dzslides-core",dzcore):vars }
-              $ Pandoc (Meta $ M.singleton "title" $ MetaInlines $ wpTitle wikiPage) $ wpContent wikiPage
-  return (contentType, toContent rendered)
+  res <- liftIO $ runIO
+               (do -- TODO better error handling
+                   setInputFiles [repository_path conf]
+                   template <- getDefaultTemplate templ
+                   writer def{
+                             writerTemplate = Just template
+                           , writerExtensions =
+                               if wpLHS wikiPage
+                                  then enableExtension Ext_literate_haskell
+                                                       pandocExtensions
+                                  else pandocExtensions
+                           , writerTableOfContents = wpTOC wikiPage
+                           , writerHTMLMathMethod = MathML
+                           , writerVariables =
+                               ("dzslides-core",dzcore):vars }
+                     $ Pandoc (Meta $ M.singleton "title"
+                     $ MetaInlines $ wpTitle wikiPage)
+                     $ wpContent wikiPage)
+  case res of
+         Right rendered -> return (contentType, toContent rendered)
+         Left e -> throw e
 
 mathjax_url :: Text
 mathjax_url = "//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
@@ -283,11 +288,16 @@ mathjax_url = "//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HT
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
 sourceToHtml path contents = do
-  let formatOpts = defaultFormatOpts { numberLines = True, lineAnchors = True }
-  return $ formatHtmlBlock formatOpts $
-     case languagesByExtension $ takeExtension path of
-        []    -> highlightAs "" $ toString contents
-        (l:_) -> highlightAs l $ toString contents
+  syntax <- case syntaxesByFilename defaultSyntaxMap path of
+                    (s:_) -> return s
+                    []    -> undefined -- TODO fix?
+  let formatOpts = defaultFormatOpts { numberLines = True
+                                     , lineAnchors = True }
+  case tokenize TokenizerConfig{ traceOutput = False
+                               , syntaxMap = defaultSyntaxMap }
+                    syntax (decodeUtf8 $ toStrict contents) of
+        Right toks -> return $ formatHtmlBlock formatOpts toks
+        Left err   -> error err
 
 getMimeType :: FilePath -> GH master ContentType
 getMimeType fp = do

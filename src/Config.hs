@@ -20,7 +20,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Map as M
 import qualified Data.ByteString.Char8 as B
-import Control.Applicative
 import Data.Yaml
 import Control.Exception (catch, SomeException)
 import Yesod
