@@ -12,6 +12,7 @@ import           Control.Exception (throw)
 import           Control.Monad (when, foldM)
 import           Data.ByteString.Lazy (ByteString, fromStrict)
 import           Data.ByteString.Lazy.UTF8 (toString)
+import qualified Text.Pandoc.UTF8 as UTF8
 import           Data.FileStore as FS
 import           Data.List (isPrefixOf)
 import qualified Data.Map as M
@@ -159,7 +160,7 @@ contentsToWikiPage page contents = do
 
 isSourceFile :: FilePath -> GH master Bool
 isSourceFile path' = do
-  let langs = languagesByFilename $ takeFileName path'
+  let langs = syntaxesByFilename $ takeFileName path'
   return $ not (null langs || takeExtension path' == ".svg")
                          -- allow svg to be served as image
 
@@ -175,14 +176,13 @@ getExportFormats = do
     , ("ConTeXt", (".tex", basicExport "context" "application/x-context" $ pureWriter writeConTeXt))
     , ("DocBook", (".xml", basicExport "docbook" "application/docbook+xml" $ pureWriter writeDocbook))
     , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts -> selfcontained opts .
-                writeHtmlString opts{ writerSlideVariant = DZSlides
-                              , writerHtml5 = True }))
+                writeDZSlides opts))
     , ("EPUB", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts ->
                  inDirectory repopath . writeEPUB opts))
     , ("Groff man", (".1", basicExport "man" typePlain $ pureWriter writeMan))
-    , ("HTML", (".html", basicExport "html" typeHtml $ \opts -> selfcontained opts . writeHtmlString opts))
+    , ("HTML4", (".html", basicExport "html" typeHtml $ \opts -> selfcontained opts . writeHtml4String opts))
     , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts ->
-                   selfcontained opts . writeHtmlString opts{ writerHtml5 = True }))
+                   selfcontained opts . writeHtml5String opts))
     , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" $ pureWriter writeLaTeX))
     , ("Markdown", (".txt", basicExport "markdown" typePlain $ pureWriter writeMarkdown))
     , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain $ pureWriter writeMediaWiki))
@@ -202,9 +202,9 @@ getExportFormats = do
     , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTFWithEmbeddedImages))
     , ("Textile", (".txt", basicExport "textile" typePlain $ pureWriter writeTextile))
     , ("S5", (".html", basicExport "s5" typeHtml $ \opts ->
-                selfcontained opts . writeHtmlString opts{ writerSlideVariant = S5Slides }))
+                selfcontained opts . writeS5 opts))
     , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts ->
-                selfcontained opts . writeHtmlString opts{ writerSlideVariant = SlidySlides }))
+                selfcontained opts . writeSlidy opts))
     , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" $ pureWriter writeTexinfo))
     , ("Word docx", (".docx", basicExport "docx"
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -215,19 +215,13 @@ pageToHtml :: HasGitit master => WikiPage -> GH master Html
 pageToHtml wikiPage =
   return $ writeHtml def{
                writerWrapText = False
-             , writerHtml5 = True
-             , writerHighlight = True
-             , writerHTMLMathMethod = MathML Nothing
+             , writerHighlightStyle = Just pygments
+             , writerHTMLMathMethod = MathML
              } $ Pandoc nullMeta (wpContent wikiPage)
 
 toSelfContained :: FilePath -> WriterOptions -> String -> IO String
-#if MIN_VERSION_pandoc(1,13,0)
 toSelfContained repopath w cont =
   inDirectory repopath $ makeSelfContained w cont
-#else
-toSelfContained repopath w cont =
-  inDirectory repopath $ makeSelfContained (writerSourceURL w) cont
-#endif
 
 pureWriter :: (WriterOptions -> Pandoc -> String) -> WriterOptions -> Pandoc -> IO String
 pureWriter w opts d = return $ w opts d
@@ -264,18 +258,19 @@ basicExport templ contentType writer wikiPage = do
                       $ dropWhile (not . isPrefixOf "<!-- {{{{ dzslides core")
                       $ lines dztempl
                 else return ""
-  rendered <- liftIO
-              $ writer def{
-                         writerTemplate = template
-                       , writerSourceURL = Just $ repository_path conf
-                       , writerStandalone = True
+  rendered <- liftIO $
+               setInputFiles [repository_path conf]
+               writer def{
+                         writerTemplate = Just template
                        , writerExtensions = if wpLHS wikiPage
-                                               then Set.insert Ext_literate_haskell pandocExtensions
+                                               then enableExtension
+                                                     Ext_literate_haskell
+                                                     pandocExtensions
                                                else pandocExtensions
                        , writerTableOfContents = wpTOC wikiPage
-                       , writerHTMLMathMethod = MathML Nothing
+                       , writerHTMLMathMethod = MathML
                        , writerVariables = ("dzslides-core",dzcore):vars }
-              $ Pandoc (Meta $ M.singleton "title" $ MetaInlines $ wpTitle wikiPage) $ wpContent wikiPage
+               $ Pandoc (Meta $ M.singleton "title" $ MetaInlines $ wpTitle wikiPage) $ wpContent wikiPage
   return (contentType, toContent rendered)
 
 mathjax_url :: Text
@@ -284,9 +279,9 @@ mathjax_url = "//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HT
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
 sourceToHtml path contents = do
-  let syntax = case syntaxByFilename defaultSyntaxMap path of
-                    (s:_) -> s
-                    []    -> Skylighting.Syntax.Alert.syntax
+  syntax <- case syntaxByFilename defaultSyntaxMap path of
+                    (s:_) -> return s
+                    []    -> mzero -- TODO fix?
   let formatOpts = defaultFormatOpts { numberLines = True
                                      , lineAnchors = True }
   return $ formatHtmlBlock formatOpts
