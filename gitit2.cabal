@@ -155,3 +155,6 @@ executable gitit2
        buildable:  True
     else
        buildable:  False
+    other-modules: ArgParser
+                   Config
+                   Error
