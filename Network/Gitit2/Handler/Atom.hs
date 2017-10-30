@@ -56,6 +56,7 @@ feed mbpage = do
         return FeedEntry{
                    feedEntryLink    = RevisionR (revId rev) firstpage
                  , feedEntryUpdated = revDateTime rev
+                 , feedEntryEnclosure = Nothing
                  , feedEntryTitle   = T.intercalate ", " changeDescrips <> ": "
                                       <> T.pack (revDescription rev) <> " (" <>
                                       T.pack (authorName $ revAuthor rev) <> ")"
@@ -64,6 +65,7 @@ feed mbpage = do
   entries <- mapM toEntry [rev | rev <- revs, not (null $ revChanges rev) ]
   return Feed{
         feedAuthor = ""
+      , feedLogo = Nothing
       , feedTitle = mr $ maybe MsgSiteFeedTitle MsgPageFeedTitle mbpage
       , feedLinkSelf = maybe AtomSiteR AtomPageR mbpage
       , feedLinkHome = HomeR

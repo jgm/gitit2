@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Network.Gitit2.WikiPage
        (
          extractCategories,
@@ -8,14 +9,14 @@ module Network.Gitit2.WikiPage
        )
        where
 
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as B
-import           Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, mapMaybe)
-import qualified Data.Set as Set
 import           Data.Text (Text)
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text as T
 import           Data.Yaml
 import           Text.HTML.SanitizeXSS (sanitizeAttribute)
@@ -86,12 +87,12 @@ contentToWikiPage' title contents converter defaultFormat =
                        Just (String s) -> s
                        _               -> ""
     format = fromMaybe defaultFormat $ readPageFormat formatStr
-    readerOpts literate = def{ readerSmart = True
-                             , readerExtensions =
+    readerOpts literate = def{ readerExtensions =
                                  if literate
-                                    then Set.insert Ext_literate_haskell pandocExtensions
+                                    then enableExtension
+                                         Ext_literate_haskell pandocExtensions
                                     else pandocExtensions }
-    (reader, lhs) = case format of
+    (reader :: Text -> PandocPure Pandoc, lhs) = case format of
                       Markdown l -> (readMarkdown (readerOpts l), l)
                       Textile  l -> (readTextile (readerOpts l), l)
                       LaTeX    l -> (readLaTeX (readerOpts l), l)
@@ -101,11 +102,15 @@ contentToWikiPage' title contents converter defaultFormat =
     fromBool (Bool t) = t
     fromBool _        = False
     toc = maybe False fromBool (M.lookup "toc" metadata)
-    doc = reader $ toString b
+    doc = case runPure $ reader (TE.decodeUtf8 $ B.toStrict b) of
+               Left e  -> E.throw e
+               Right d -> d
     Pandoc _ blocks = sanitizePandoc $ addWikiLinks doc
     convertWikiLinks :: Inline -> Inline
-    convertWikiLinks (Link ref ("", "")) = Link ref (converter ref, "")
-    convertWikiLinks (Image ref ("", "")) = Image ref (converter ref, "")
+    convertWikiLinks (Link attr ref ("", "")) =
+      Link attr ref (converter ref, "")
+    convertWikiLinks (Image attr ref ("", "")) =
+      Image attr ref (converter ref, "")
     convertWikiLinks x = x
 
     addWikiLinks :: Pandoc -> Pandoc
@@ -132,8 +137,10 @@ contentToWikiPage' title contents converter defaultFormat =
         sanitizeInline (RawInline _ _) = Str ""
         sanitizeInline (Code (id',classes,attrs) x) =
           Code (id', classes, sanitizeAttrs attrs) x
-        sanitizeInline (Link lab (src,tit)) = Link lab (sanitizeURI src,tit)
-        sanitizeInline (Image alt (src,tit)) = Image alt (sanitizeURI src,tit)
+        sanitizeInline (Link attr lab (src,tit)) =
+          Link attr lab (sanitizeURI src,tit)
+        sanitizeInline (Image attr alt (src,tit)) =
+          Image attr alt (sanitizeURI src,tit)
         sanitizeInline x = x
         sanitizeURI src = case sanitizeAttribute ("href", T.pack src) of
                                Just (_,z) -> T.unpack z
