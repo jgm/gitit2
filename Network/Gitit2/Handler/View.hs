@@ -26,13 +26,12 @@ import           Network.Gitit2.Page (discussPageFor, isDiscussPage, Page(Page),
 import           Network.Gitit2.WikiPage (WikiPage(..), contentToWikiPage')
 import           System.FilePath
 import           Text.Blaze.Html hiding (contents)
-import           Text.Highlighting.Kate
+import           Skylighting
 import           Text.Julius (juliusFile)
 import           Text.Pandoc
 import           Text.Pandoc.PDF (makePDF)
 import           Text.Pandoc.SelfContained (makeSelfContained)
-import           Text.Pandoc.Shared (stringify, inDirectory, readDataFileUTF8)
-import           Text.Pandoc.Writers.RTF (writeRTFWithEmbeddedImages)
+import           Text.Pandoc.Shared (stringify, inDirectory)
 import           Yesod.AtomFeed
 import           Yesod.Static
 
@@ -257,8 +256,10 @@ basicExport templ contentType writer wikiPage = do
   let vars = mapMaybe metadataToVar $ M.toList $ wpMetadata wikiPage
   dzcore <- if templ == "dzslides"
                 then liftIO $ do
-                  dztempl <- readDataFileUTF8 (pandoc_user_data conf)
-                             $ "dzslides" </> "template.html"
+                  dztempl <- runIOorExplode $ do
+                                 setUserDataDir $ pandoc_user_data conf
+                                 UTF8.toString <$> readDataFile
+                                  $ "dzslides" </> "template.html"
                   return $ unlines
                       $ dropWhile (not . isPrefixOf "<!-- {{{{ dzslides core")
                       $ lines dztempl
@@ -283,11 +284,15 @@ mathjax_url = "//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HT
 sourceToHtml :: HasGitit master
              => FilePath -> ByteString -> GH master Html
 sourceToHtml path contents = do
-  let formatOpts = defaultFormatOpts { numberLines = True, lineAnchors = True }
-  return $ formatHtmlBlock formatOpts $
-     case languagesByExtension $ takeExtension path of
-        []    -> highlightAs "" $ toString contents
-        (l:_) -> highlightAs l $ toString contents
+  let syntax = case syntaxByFilename defaultSyntaxMap path of
+                    (s:_) -> s
+                    []    -> Skylighting.Syntax.Alert.syntax
+  let formatOpts = defaultFormatOpts { numberLines = True
+                                     , lineAnchors = True }
+  return $ formatHtmlBlock formatOpts
+         $ tokenize TokenizerConfig{ traceOutput = False
+                                   , syntaxMap = defaultSyntaxMap }
+                    syntax contents
 
 getMimeType :: FilePath -> GH master ContentType
 getMimeType fp = do
