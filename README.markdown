@@ -65,8 +65,7 @@ Hacking gitit2
 Here are some notes for those who want to modify or
 add to the code.
 
-* The library is in `Network/Gitit.hs`.
-* The executable, which uses the library, is in `src/gitit.hs`.
-* On Debian you might want to install these build dependencies with
-  the operating systems package manager:
-  libzip-dev happy, alex
+* The library is in `Network/Gitit2.hs` and `Network/Gitit/*`.
+  It follows the typical layout of a Yesod application.
+* The executable, which uses the library, is in `src/gitit2.hs`.
+
