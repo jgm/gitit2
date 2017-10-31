@@ -4,10 +4,9 @@ import Network.Gitit2
 import Yesod
 import Yesod.Static
 import Yesod.Auth
-import Yesod.Auth.BrowserId
+import Yesod.Auth.Dummy
 import Network.Wai.Handler.Warp
 import Data.FileStore
-import Control.Applicative
 import Text.Pandoc
 import qualified Text.Pandoc.UTF8 as UTF8
 import System.FilePath ((<.>), (</>))
@@ -15,7 +14,6 @@ import Control.Monad (when, unless)
 import System.Directory (removeDirectoryRecursive, doesDirectoryExist)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Set as Set
 import Paths_gitit2 (getDataFileName)
 import qualified Network.HTTP.Conduit as HC
 -- TODO only for samplePlugin
@@ -58,7 +56,7 @@ instance Yesod Master where
         });
         |]
       contents
-    giveUrlRenderer [hamlet|
+    withUrlRenderer [hamlet|
         $doctype 5
         <html>
           <head>
@@ -83,7 +81,7 @@ instance YesodAuth Master where
   loginDest _ = RootR
   logoutDest _ = RootR
 
-  authPlugins _ = [ authBrowserId def ]
+  authPlugins _ = [ authDummy ]
 
   maybeAuthId = lookupSession "_ID"
 
@@ -113,7 +111,7 @@ instance HasGitit Master where
 getUserR :: Handler Html
 getUserR = do
   maid <- maybeAuthId
-  giveUrlRenderer [hamlet|
+  withUrlRenderer [hamlet|
     $maybe aid <- maid
       <p><a href=@{AuthR LogoutR}>Logout #{aid}
     $nothing
@@ -123,7 +121,7 @@ getUserR = do
 getMessagesR :: Handler Html
 getMessagesR = do
   mmsg <- getMessage
-  giveUrlRenderer [hamlet|
+  withUrlRenderer [hamlet|
     $maybe msg  <- mmsg
       <p.message>#{msg}
     |]
@@ -176,7 +174,7 @@ main = do
 
   unless repoexists $ initializeRepo gconfig fs
 
-  man <- HC.newManager HC.conduitManagerSettings
+  man <- HC.newManager HC.tlsManagerSettings
   run (cfg_port conf)  =<< toWaiApp
       (Master (foundationSettingsFromConf conf)
               Gitit{ config = gconfig

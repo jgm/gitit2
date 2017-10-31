@@ -9,15 +9,13 @@ module Network.Gitit2.Handler.View (
   ) where
 
 import           Control.Exception (throw)
-import           Control.Monad (when, foldM, mzero)
+import           Control.Monad (when, foldM)
 import           Data.ByteString.Lazy (ByteString, fromStrict, toStrict)
 import           Data.ByteString.Lazy.UTF8 (toString)
-import qualified Text.Pandoc.UTF8 as UTF8
 import           Data.FileStore as FS
 import           Data.List (isPrefixOf)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe, mapMaybe, isJust, isNothing)
-import qualified Data.Set as Set
 import qualified Data.Text as T
 import           Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import           Data.Yaml
@@ -32,7 +30,7 @@ import           Text.Julius (juliusFile)
 import           Text.Pandoc
 import           Text.Pandoc.PDF (makePDF)
 import           Text.Pandoc.SelfContained (makeSelfContained)
-import           Text.Pandoc.Shared (stringify, inDirectory)
+import           Text.Pandoc.Shared (stringify)
 import           Yesod.AtomFeed
 import           Yesod.Static
 
@@ -79,7 +77,7 @@ makeDefaultPage :: HasGitit master => PageLayout -> WidgetT master IO () -> GH m
 makeDefaultPage layout content = do
   toMaster <- getRouteToParent
   let logoRoute = staticR $ StaticRoute ["img","logo.png"] []
-  let feedRoute = staticR $ StaticRoute ["img","icons","feed.png"] []
+  -- let feedRoute = staticR $ StaticRoute ["img","icons","feed.png"] []
 
   let searchRoute = toMaster SearchR
   let goRoute = toMaster GoR
@@ -168,20 +166,23 @@ getExportFormats :: GH master [(Text, (Text, WikiPage -> GH master (ContentType,
 getExportFormats = do
   conf <- getConfig
   let repopath = repository_path conf
-  -- let userdata = pandoc_user_data conf
-  let selfcontained = toSelfContained repopath
+  let selfcontained f = \opt pdc -> do
+        setResourcePath [repopath]
+        setUserDataDir (pandoc_user_data conf)
+        res <- f opt pdc
+        T.pack <$> makeSelfContained (T.unpack res)
   return $
     [ ("Asciidoc", (".txt", basicExport "asciidoc" typePlain $ pureWriter writeAsciiDoc))
     , ("Beamer", (".tex", basicExport "beamer" "application/x-latex" $ pureWriter writeLaTeX))
     , ("ConTeXt", (".tex", basicExport "context" "application/x-context" $ pureWriter writeConTeXt))
     , ("DocBook v4", (".xml", basicExport "docbook" "application/docbook+xml" $ pureWriter writeDocbook4))
     , ("DocBook v5", (".xml", basicExport "docbook" "application/docbook+xml" $ pureWriter writeDocbook5))
--- TODO:    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ \opts -> selfcontained .  writeDZSlides opts))
+    , ("DZSlides", (".html", basicExport "dzslides" typeHtml $ selfcontained writeDZSlides))
     , ("EPUB v2", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts d -> setResourcePath [repopath] >> writeEPUB2 opts d))
     , ("EPUB v3", (".epub", basicExport "epub" "application/xhtml+xml" $ \opts d -> setResourcePath [repopath] >> writeEPUB3 opts d))
     , ("Groff man", (".1", basicExport "man" typePlain $ pureWriter writeMan))
--- TODO:    , ("HTML4", (".html", basicExport "html" typeHtml $ \opts -> selfcontained . writeHtml4String opts))
--- TODO:    , ("HTML5", (".html", basicExport "html5" typeHtml $ \opts -> selfcontained . writeHtml5String opts))
+    , ("HTML4", (".html", basicExport "html" typeHtml $ selfcontained $ pureWriter writeHtml4String))
+    , ("HTML5", (".html", basicExport "html5" typeHtml $ selfcontained $ pureWriter writeHtml5String))
     , ("LaTeX", (".tex", basicExport "latex" "application/x-latex" $ pureWriter writeLaTeX))
     , ("Markdown", (".txt", basicExport "markdown" typePlain $ pureWriter writeMarkdown))
     , ("Mediawiki", (".wiki", basicExport "mediawiki" typePlain $ pureWriter writeMediaWiki))
@@ -203,8 +204,8 @@ getExportFormats = do
     , ("reStructuredText", (".txt", basicExport "rst" typePlain $ pureWriter writeRST))
     , ("RTF", (".rtf", basicExport "rtf" "application/rtf" writeRTF))
     , ("Textile", (".txt", basicExport "textile" typePlain $ pureWriter writeTextile))
--- TODO    , ("S5", (".html", basicExport "s5" typeHtml $ \opts -> selfcontained . writeS5 opts))
--- TODO    , ("Slidy", (".html", basicExport "slidy" typeHtml $ \opts -> selfcontained . writeSlidy opts))
+    , ("S5", (".html", basicExport "s5" typeHtml $ selfcontained $ pureWriter  writeS5))
+    , ("Slidy", (".html", basicExport "slidy" typeHtml $ selfcontained $ pureWriter writeSlidy))
     , ("Texinfo", (".texi", basicExport "texinfo" "application/x-texinfo" $ pureWriter writeTexinfo))
     , ("Word docx", (".docx", basicExport "docx"
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -221,12 +222,6 @@ pageToHtml wikiPage = do
   case res of
        Left err -> throw err
        Right r  -> return r
-
-toSelfContained :: PandocMonad m
-                => FilePath -> Text -> m Text
-toSelfContained repopath cont = do
-  setResourcePath [repopath]
-  T.pack <$> makeSelfContained (T.unpack cont)
 
 pureWriter :: (WriterOptions -> Pandoc -> PandocPure Text)
            -> WriterOptions -> Pandoc -> PandocIO Text
